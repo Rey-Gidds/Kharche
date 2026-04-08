@@ -5,6 +5,8 @@ export interface IUser extends Document {
   email: string;
   emailVerified: boolean;
   image?: string;
+  walletBalance: number;
+  currency: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -15,6 +17,8 @@ const UserSchema = new Schema<IUser>(
     email: { type: String, required: true, unique: true },
     emailVerified: { type: Boolean, default: false },
     image: { type: String },
+    walletBalance: { type: Number, default: 0 },
+    currency: { type: String, default: "INR" },
   },
   { timestamps: true }
 );
