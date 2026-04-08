@@ -9,11 +9,13 @@ export interface IExpense extends Document {
   date: Date;
   createdAt: Date;
   updatedAt: Date;
+  bookId?: mongoose.Types.ObjectId;
 }
 
 const ExpenseSchema = new Schema<IExpense>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
+    bookId: { type: Schema.Types.ObjectId, ref: "ExpenseBook" },
     amount: { type: Number, required: true },
     currency: { type: String, default: "USD" },
     category: { type: String, required: true },
