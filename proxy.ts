@@ -5,7 +5,7 @@ export default async function proxy(request: NextRequest) {
     const { data: session } = await betterFetch<any>(
         "/api/auth/get-session",
         {
-            baseURL: request.nextUrl.origin,
+            baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
             headers: {
                 cookie: request.headers.get("cookie") || "",
             },
