@@ -41,7 +41,7 @@ export async function POST(req: Request) {
             mongoSession.endSession();
 
             return NextResponse.json({ 
-                message: "Pocket money added successfully", 
+                message: "Added money to wallet successfully", 
                 walletBalance: user.walletBalance 
             });
         } catch (txnError) {
