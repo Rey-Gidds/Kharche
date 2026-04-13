@@ -1,0 +1,84 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+
+interface ActionFabProps {
+  onAddExpense: () => void;
+  onAddBook: () => void;
+  isInsideBook?: boolean;
+}
+
+export default function ActionFab({ onAddExpense, onAddBook, isInsideBook }: ActionFabProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  return (
+    <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end gap-4" ref={menuRef}>
+      {/* Upward Menu */}
+      {!isInsideBook && (
+        <div 
+          className={`flex flex-col items-end gap-3 transition-all duration-300 origin-bottom ${
+            isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4 pointer-events-none"
+          }`}
+        >
+          <button
+            onClick={() => {
+              onAddBook();
+              setIsOpen(false);
+            }}
+            className="flex items-center gap-3 bg-[var(--surface)] hover:bg-[var(--border)] text-[var(--foreground)] px-4 py-2.5 rounded-full shadow-lg border border-[var(--border)] transition-colors group"
+          >
+            <span className="text-[11px] font-bold uppercase tracking-wider">New Expense Book</span>
+            <div className="w-10 h-10 flex items-center justify-center bg-[var(--foreground)] text-[var(--background)] rounded-full group-hover:scale-110 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </div>
+          </button>
+
+          <button
+            onClick={() => {
+              onAddExpense();
+              setIsOpen(false);
+            }}
+            className="flex items-center gap-3 bg-[var(--surface)] hover:bg-[var(--border)] text-[var(--foreground)] px-4 py-2.5 rounded-full shadow-lg border border-[var(--border)] transition-colors group"
+          >
+            <span className="text-[11px] font-bold uppercase tracking-wider">New Expense Ticket</span>
+            <div className="w-10 h-10 flex items-center justify-center bg-[var(--accent)] text-[var(--background)] rounded-full group-hover:scale-110 transition-transform">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Main button */}
+      <button
+        onClick={() => isInsideBook ? onAddExpense() : setIsOpen(!isOpen)}
+        className={`w-14 h-14 flex items-center justify-center rounded-full shadow-xl transition-all duration-300 ${
+          isOpen && !isInsideBook ? "bg-[var(--foreground)] text-[var(--background)] rotate-45" : "bg-[var(--accent)] text-[var(--background)]"
+        }`}
+        title={isInsideBook ? "Create Ticket" : "Actions"}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="12" y1="5" x2="12" y2="19"></line>
+          <line x1="5" y1="12" x2="19" y2="12"></line>
+        </svg>
+      </button>
+    </div>
+  );
+}
