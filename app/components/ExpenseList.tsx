@@ -6,10 +6,21 @@ import { formatDate } from "@/utils/dateHelpers";
 import { convertCurrency, supportedCurrencies } from "@/utils/currencyConverter";
 import { useExpenses } from "@/context/ExpenseContext";
 import { createPortal } from "react-dom";
+import { useWallet } from "@/context/WalletContext";
+import { useSession } from "@/lib/auth-client";
 import ErrorMessage from "./ErrorMessage";
 
-export default function ExpenseList() {
+interface ExpenseListProps {
+  bookId?: string;
+  bookTitle?: string;
+  onBack?: () => void;
+  refreshTrigger?: number;
+}
+
+export default function ExpenseList({ bookId, bookTitle, onBack, refreshTrigger }: ExpenseListProps) {
   const { expenses, fetchExpenses, updateExpense, loading, error, setError } = useExpenses();
+  const { refetchWallet, walletBalance, walletCurrency } = useWallet();
+  const { data: session } = useSession();
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -41,7 +52,8 @@ export default function ExpenseList() {
     try {
       const response = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
       if (response.ok) {
-        await fetchExpenses(sortBy, sortOrder, categoryFilter);
+        await fetchExpenses(sortBy, sortOrder, categoryFilter, bookId);
+        refetchWallet(session?.user);
         if (drawerData?.id === id) setDrawerData(null);
       }
     } catch (error) {
@@ -53,6 +65,7 @@ export default function ExpenseList() {
     if (!drawerData?.id || !editForm) return;
     const success = await updateExpense(drawerData.id, editForm);
     if (success) {
+      refetchWallet(session?.user);
       setActiveMenu(null);
       setDrawerData(null);
     }
@@ -72,8 +85,8 @@ export default function ExpenseList() {
   };
 
   useEffect(() => {
-    fetchExpenses(sortBy, sortOrder, categoryFilter);
-  }, [sortBy, sortOrder, categoryFilter, fetchExpenses]);
+    fetchExpenses(sortBy, sortOrder, categoryFilter, bookId);
+  }, [sortBy, sortOrder, categoryFilter, bookId, fetchExpenses, refreshTrigger]);
 
   if (loading && expenses.length === 0) {
     return (
@@ -95,13 +108,27 @@ export default function ExpenseList() {
             label: "Try Again",
             onClick: () => {
               setError(null);
-              fetchExpenses(sortBy, sortOrder);
+              fetchExpenses(sortBy, sortOrder, categoryFilter, bookId);
             }
           }}
         />
       </div>
     );
   }
+
+  // Calculate estimated balance for editing
+  const originalExpense = drawerData ? expenses.find(e => e._id === drawerData.id) : null;
+  const getEstimatedBalance = () => {
+    if (!originalExpense || !editForm || drawerData?.mode !== "edit") return { estimatedBalance: 0, isBelow: false, threshold: 0 };
+    const originalInWallet = convertCurrency(originalExpense.amount, originalExpense.currency, walletCurrency);
+    const newInWallet = convertCurrency(Number(editForm.amount), editForm.currency, walletCurrency);
+    const estimatedBalance = (walletBalance || 0) + originalInWallet - newInWallet;
+    const threshold = convertCurrency(1000, "INR", walletCurrency);
+    const isBelow = estimatedBalance < threshold;
+    return { estimatedBalance, isBelow, threshold };
+  };
+
+  const { estimatedBalance, isBelow, threshold } = getEstimatedBalance();
 
   const drawerContent = drawerData && (
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
@@ -161,6 +188,14 @@ export default function ExpenseList() {
                 </select>
               </div>
             </div>
+
+            {/* Sleek Est Balance Lookup */}
+            {drawerData.mode === "edit" && editForm && originalExpense && (
+              <div className={`text-[10px] font-bold uppercase tracking-tight mt-[-16px] transition-colors ${isBelow ? 'text-rose-500' : 'text-emerald-500'}`}>
+                Est. Balance after: {Math.max(0, estimatedBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency}
+                {isBelow && ` (Below ${threshold.toLocaleString(undefined, { maximumFractionDigits: 2 })} threshold)`}
+              </div>
+            )}
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-[var(--muted)] uppercase">Category</label>
               <input 
@@ -188,8 +223,12 @@ export default function ExpenseList() {
               />
             </div>
             <div className="pt-4 flex gap-3">
-              <button onClick={handleUpdateSubmit} className="flex-1 bg-[var(--accent)] text-[var(--background)] rounded py-3 font-bold text-sm cursor-pointer hover:opacity-90">
-                Save Changes
+              <button 
+                onClick={handleUpdateSubmit} 
+                disabled={isBelow}
+                className="flex-1 bg-[var(--accent)] text-[var(--background)] rounded py-3 font-bold text-sm cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isBelow ? "Insufficient Funds" : "Save Changes"}
               </button>
               <button onClick={() => setDrawerData(null)} className="px-6 border border-[var(--border)] rounded text-sm text-[var(--muted)] cursor-pointer hover:bg-[var(--background)]">
                 Cancel
@@ -204,7 +243,20 @@ export default function ExpenseList() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-[var(--border)] pb-4 gap-4">
-        <h2 className="text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">Ledger Entries</h2>
+        <div className="flex items-center gap-4">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-2 hover:bg-[var(--border)] rounded-full text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer"
+              title="Back to Collections"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+          )}
+          <h2 className="text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">
+            {bookTitle || "Ledger Entries"}
+          </h2>
+        </div>
         <div className="flex flex-wrap items-center gap-4 font-inter">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Show in:</span>
@@ -312,7 +364,7 @@ export default function ExpenseList() {
                       {activeMenu === expense._id && (
                         <div 
                           ref={menuRef} 
-                          className={`absolute right-0 ${index >= expenses.length - 1 && expenses.length >= 2 ? 'bottom-full origin-bottom-right' : 'top-12 origin-top-right'} w-48 bg-[var(--surface)] border border-[var(--border)] shadow-2xl rounded-lg z-[999] text-left animate-in fade-in zoom-in-95 duration-200 transition-all`}
+                          className={`absolute right-0 ${index >= expenses.length - 1 && expenses.length >= 2 ? 'bottom-16 origin-bottom-right' : 'top-16 origin-top-right'} w-48 bg-[var(--surface)] border border-[var(--border)] shadow-2xl rounded-lg z-[999] text-left animate-in fade-in zoom-in-95 duration-200 transition-all`}
                         >
                           <button onClick={() => openDrawer(expense._id, "view")} className="w-full px-4 py-2 text-xs font-bold text-[var(--foreground)] opacity-80 hover:bg-[var(--border)] flex items-center gap-2 cursor-pointer">
                             <span>View Details</span>
