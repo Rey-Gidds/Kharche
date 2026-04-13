@@ -2,14 +2,23 @@
 
 import { useState } from "react";
 import { useExpenses } from "@/context/ExpenseContext";
+import { useNotification } from "@/context/NotificationContext";
 import { supportedCurrencies } from "@/utils/currencyConverter";
+import { useSession } from "@/lib/auth-client";
+import { convertCurrency } from "@/utils/currencyConverter";
+import { useWallet } from "@/context/WalletContext";
 import ErrorMessage from "./ErrorMessage";
 
 const CATEGORY_LIMIT = 20;
 const DESCRIPTION_LIMIT = 100;
 const AMOUNT_LIMIT = 1000000;
 
-export default function AddExpenseForm() {
+interface AddExpenseFormProps {
+  bookId?: string;
+  onSuccess?: () => void;
+}
+
+export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProps) {
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [category, setCategory] = useState("Food");
@@ -19,15 +28,35 @@ export default function AddExpenseForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { fetchExpenses } = useExpenses();
+  const { showNotification } = useNotification();
+  const { data: session } = useSession();
+  const { walletBalance, walletCurrency, refetchWallet } = useWallet();
+  console.log("Wallet Currency:", walletCurrency);
+
+  const costInWalletCurrency = amount ? convertCurrency(Number(amount), currency, walletCurrency) : 0;
+  const projectedBalance = walletBalance - costInWalletCurrency;
+  
+  // Threshold logic: 1000 INR equivalent
+  const thresholdInWalletCurrency = convertCurrency(1000, "INR", walletCurrency);
+  const isBelowThreshold = projectedBalance < thresholdInWalletCurrency && !!amount;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
+    if (isBelowThreshold) {
+      const msg = `Insufficient balance. Minimum threshold is ${thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${walletCurrency}.`;
+      setError(msg);
+      showNotification(msg, "error");
+      setLoading(false);
+      return;
+    }
+
     const finalAmount = Number(amount);
     if (finalAmount > AMOUNT_LIMIT) {
       setError(`Amount cannot exceed ${AMOUNT_LIMIT.toLocaleString()}`);
+      showNotification(`Amount cannot exceed ${AMOUNT_LIMIT.toLocaleString()}`, "error");
       setLoading(false);
       return;
     }
@@ -48,7 +77,8 @@ export default function AddExpenseForm() {
           currency, 
           category: finalCategory, 
           description, 
-          date 
+          date,
+          bookId
         }),
       });
 
@@ -58,22 +88,28 @@ export default function AddExpenseForm() {
         setCategory("Food");
         setCustomCategory("");
         setDescription("");
-        await fetchExpenses();
+        showNotification("Expense added successfully", "success");
+        
+        // Refetch wallet balance after adding expense
+        refetchWallet(session?.user);
+        
+        if (onSuccess) onSuccess();
       } else {
         const data = await response.json();
-        setError(data.error || "Failed to add expense");
+        const errorMsg = data.error || "Failed to add expense";
+        setError(errorMsg);
+        showNotification(errorMsg, "error");
       }
     } catch (error) {
       setError("An error occurred. Please try again.");
+      showNotification("An error occurred. Please try again.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-[var(--surface)] p-8 rounded-xl border border-[var(--border)] shadow-sm font-inter">
-      <h2 className="text-xl font-playfair font-bold text-[var(--foreground)] mb-6">Record New Expense</h2>
-      
+    <div className="font-inter">
       {error && (
         <div className="mb-6">
           <ErrorMessage 
@@ -89,24 +125,30 @@ export default function AddExpenseForm() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Amount</label>
-            <div className="flex gap-2 border-b border-[var(--border)] focus-within:border-[var(--accent)]">
+            <div className="flex w-full justify-between gap-3 border-b border-[var(--border)] focus-within:border-[var(--accent)]">
               <input
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="flex-grow py-2 bg-transparent outline-none font-bold text-lg text-[var(--foreground)]"
+                className="flex-grow py-2 bg-transparent outline-none font-bold text-lg text-[var(--foreground)] min-w-0"
                 required
                 max={AMOUNT_LIMIT}
               />
               <select
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="py-2 bg-transparent outline-none text-xs font-bold text-[var(--muted)] cursor-pointer"
+                className="py-2 bg-transparent outline-none text-xs font-bold text-[var(--muted)] cursor-pointer shrink-0"
               >
                 {supportedCurrencies.map(curr => <option key={curr} value={curr} className="bg-[var(--surface)]">{curr}</option>)}
               </select>
             </div>
+            {amount && (
+              <div className={`text-[10px] font-bold uppercase tracking-tight mt-1 transition-colors ${isBelowThreshold ? 'text-rose-500' : 'text-emerald-500'}`}>
+                Est. Balance after: {Math.max(0, projectedBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency}
+                {isBelowThreshold && ` (Below ${thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} threshold)`}
+              </div>
+            )}
           </div>
           <div className="space-y-1.5">
             <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Category</label>
@@ -163,10 +205,10 @@ export default function AddExpenseForm() {
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={isBelowThreshold || loading}
           className="w-full py-3.5 bg-[var(--accent)] text-[var(--background)] font-bold text-xs uppercase tracking-widest rounded-lg cursor-pointer hover:opacity-90 disabled:opacity-50 mt-4 shadow-sm"
         >
-          {loading ? "Registering..." : "Submit Entry"}
+          {loading ? "Registering..." : isBelowThreshold ? "Insufficient Funds" : "Submit Entry"}
         </button>
       </form>
     </div>
