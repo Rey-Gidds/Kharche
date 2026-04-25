@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { JoinRoomClient } from "./JoinRoomClient";
+import JoinRoomClient from "./JoinRoomClient";
 
 export default async function JoinRoomPage({
   params,
