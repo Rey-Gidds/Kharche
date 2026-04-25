@@ -4,10 +4,11 @@ import { useSession } from "@/lib/auth-client";
 import { useState } from "react";
 import { useNotification } from "@/context/NotificationContext";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Wallet, User as UserIcon, Plus, Globe } from "lucide-react";
+import { ArrowLeft, Wallet, User as UserIcon, Plus, Globe, Camera, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
 import { supportedCurrencies, convertCurrency } from "@/utils/currencyConverter";
+import { useRef } from "react";
 
 export default function MePage() {
     const { data: session, isPending, error: sessionError } = useSession();
@@ -17,6 +18,8 @@ export default function MePage() {
     const router = useRouter();
     const { walletBalance, walletCurrency, refetchWallet, setWalletDefaultCurrency } = useWallet();
     const thresholdInWalletCurrency = convertCurrency(1000, "INR", walletCurrency);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [uploading, setUploading] = useState(false);
 
     if (isPending) {
         return (
@@ -67,6 +70,44 @@ export default function MePage() {
         }
     };
 
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // 1MB Limit
+        if (file.size > 1024 * 1024) {
+            showNotification("Image must be less than 1MB", "error");
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onloadstart = () => setUploading(true);
+        reader.onloadend = async () => {
+            const base64 = reader.result as string;
+            try {
+                const res = await fetch("/api/user/profile-picture", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ image: base64 }),
+                });
+
+                if (res.ok) {
+                    showNotification("Profile picture updated!", "success");
+                    // Force refresh to update session data across components
+                    window.location.reload();
+                } else {
+                    const data = await res.json();
+                    showNotification(data.error || "Upload failed", "error");
+                }
+            } catch (err) {
+                showNotification("An error occurred during upload", "error");
+            } finally {
+                setUploading(false);
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
     return (
         <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-20">
             <header className="px-6 pt-12 pb-8 max-w-4xl mx-auto">
@@ -81,13 +122,36 @@ export default function MePage() {
             <main className="px-6 max-w-4xl mx-auto flex flex-col md:grid md:grid-cols-2 gap-8">
                 {/* Profile Card */}
                 <section className="bg-[var(--surface)] p-8 rounded-2xl border border-[var(--border)] shadow-sm">
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="w-16 h-16 rounded-full bg-[var(--accent-dim)] flex items-center justify-center text-[var(--accent)]">
-                            {user.image ? (
-                                <img src={user.image} alt={user.name} className="w-full h-full rounded-full object-cover" />
-                            ) : (
-                                <UserIcon className="w-8 h-8" />
-                            )}
+                    <div className="flex items-center gap-6 mb-8">
+                        <div className="relative group">
+                            <div className="w-20 h-20 rounded-full bg-[var(--accent-dim)] flex items-center justify-center text-[var(--accent)] border-2 border-[var(--border)] overflow-hidden shadow-inner">
+                                {user.image ? (
+                                    <img src={user.image} alt={user.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <UserIcon className="w-10 h-10" />
+                                )}
+                                
+                                {uploading && (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                        <Loader2 className="w-6 h-6 text-white animate-spin" />
+                                    </div>
+                                )}
+                            </div>
+                            <button 
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={uploading}
+                                type="button"
+                                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[var(--foreground)] text-[var(--background)] flex items-center justify-center shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:scale-100"
+                            >
+                                <Camera className="w-4 h-4" />
+                            </button>
+                            <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                onChange={handleImageUpload} 
+                                accept="image/*" 
+                                className="hidden" 
+                            />
                         </div>
                         <div>
                             <h2 className="text-xl font-bold">{user.name}</h2>
