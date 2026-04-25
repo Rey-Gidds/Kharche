@@ -28,7 +28,7 @@ export default function ExpenseBookCard({ title, description, createdAt, onClick
       {/* 3-dots options button */}
       <button
         onClick={onOptionsClick}
-        className="absolute top-3 right-3 p-1.5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--background)] rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+        className="absolute top-3 right-3 p-1.5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--background)] rounded-full transition-colors z-10 opacity-100 md:opacity-0 group-hover:opacity-100 focus:opacity-100"
         title="Options"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -77,9 +77,9 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Content Area — views are always mounted but hidden for caching/persistence */}
       <section className="min-h-[400px]">
-        {viewMode === "books" && (
+        <div className={viewMode === "books" ? "block animate-in fade-in duration-300" : "hidden"}>
           <div className="space-y-6 md:space-y-8">
             <h2 className="hidden md:block text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">Workspaces</h2>
             <ExpenseBookList
@@ -87,14 +87,17 @@ export default function Dashboard() {
               refreshTrigger={refreshTrigger}
             />
           </div>
-        )}
-
-        {viewMode === "all-tickets" && (
+        </div>
+        
+        <div className={viewMode === "all-tickets" ? "block animate-in fade-in duration-300" : "hidden"}>
           <ExpenseList refreshTrigger={refreshTrigger} />
-        )}
+        </div>
 
-        {viewMode === "insights" && <InsightsView />}
+        <div className={viewMode === "insights" ? "block animate-in fade-in duration-300" : "hidden"}>
+          <InsightsView />
+        </div>
 
+        {/* Single Book and Rooms still use conditional rendering for data integrity/parameters */}
         {viewMode === "single-book" && selectedBookId && (
           <ExpenseList
             bookId={selectedBookId}

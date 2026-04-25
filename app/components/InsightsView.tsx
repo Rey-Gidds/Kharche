@@ -125,13 +125,24 @@ export default function InsightsView() {
           </p>
         </div>
 
-        <button 
-           onClick={() => setIsDrawerOpen(true)}
-           className="hidden md:flex items-center gap-2 px-6 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[10px] font-bold uppercase tracking-widest text-[var(--foreground)] hover:border-[var(--accent)] transition-all cursor-pointer shadow-sm group"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:rotate-12 transition-transform"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14V8"/><path d="M12 18h.01"/><path d="M16 12 12 8 8 12"/></svg>
-          Configure View
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-2 px-4 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[10px] font-bold uppercase tracking-widest text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all cursor-pointer group shadow-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:-translate-y-0.5 transition-transform"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">Export</span>
+          </button>
+          
+          <button 
+             onClick={() => setIsDrawerOpen(true)}
+             className="hidden md:flex items-center gap-2 px-6 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[10px] font-bold uppercase tracking-widest text-[var(--foreground)] hover:border-[var(--accent)] transition-all cursor-pointer shadow-sm group"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:rotate-12 transition-transform"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14V8"/><path d="M12 18h.01"/><path d="M16 12 12 8 8 12"/></svg>
+            Configure View
+          </button>
+        </div>
       </div>
 
       {/* Summary Cards — vertical scroll on mobile, 3-col grid on desktop */}
@@ -171,16 +182,7 @@ export default function InsightsView() {
         <MinimalBarChart data={aggregatedData} height={220} />
       </div>
 
-      {/* Utilities */}
-      <div className="flex justify-end pt-4 pb-16 md:pb-0">
-        <button 
-          onClick={handleExport}
-          className="flex items-center gap-2 px-6 py-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[10px] font-bold uppercase tracking-widest text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all cursor-pointer group"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:-translate-y-0.5 transition-transform"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-          Export entries as CSV
-        </button>
-      </div>
+
 
       {/* Mobile Floating Action Button for Configure */}
       <div className="fixed bottom-20 left-0 w-full px-4 md:hidden z-30 flex justify-center">

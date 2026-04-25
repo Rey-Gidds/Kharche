@@ -113,7 +113,7 @@ export default function MePage() {
             <header className="px-6 pt-12 pb-8 max-w-4xl mx-auto">
                 <Link href="/" className="inline-flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors mb-6 group text-sm font-medium">
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                    Back to Journal
+                    Home
                 </Link>
                 <h1 className="text-4xl font-serif font-bold text-[var(--foreground)]">My Account</h1>
                 <p className="text-[var(--muted)] mt-2">Manage your profile and wallet settings.</p>

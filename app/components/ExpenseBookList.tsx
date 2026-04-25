@@ -152,8 +152,8 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
   if (loading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 animate-pulse">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-[var(--surface)] h-[160px] md:h-[220px] rounded-xl" />
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="bg-[var(--border)] h-[160px] md:h-[220px] rounded-xl opacity-50" />
         ))}
       </div>
     );

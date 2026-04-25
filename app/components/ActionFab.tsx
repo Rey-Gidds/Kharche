@@ -9,9 +9,10 @@ interface ActionFabProps {
   onAddExpense: () => void;
   onAddBook: () => void;
   isInsideBook?: boolean;
+  isInsideRoom?: boolean;
 }
 
-export default function ActionFab({ onAddExpense, onAddBook, isInsideBook }: ActionFabProps) {
+export default function ActionFab({ onAddExpense, onAddBook, isInsideBook, isInsideRoom }: ActionFabProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -31,7 +32,7 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook }: Act
   }, []);
 
   const handleFabClick = () => {
-    if (isInsideBook) {
+    if (isInsideBook || isInsideRoom) {
       onAddExpense();
     } else {
       if (isMobile) {
@@ -46,7 +47,7 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook }: Act
     <>
       <div className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-40 flex flex-col items-end gap-4" ref={menuRef}>
         {/* Desktop Upward Menu */}
-        {!isInsideBook && !isMobile && (
+        {!isInsideBook && !isInsideRoom && !isMobile && (
           <div 
             className={`flex flex-col items-end gap-3 transition-all duration-300 origin-bottom ${
               isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 translate-y-4 pointer-events-none"
@@ -90,9 +91,9 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook }: Act
         <button
           onClick={handleFabClick}
           className={`w-14 h-14 flex items-center justify-center rounded-full shadow-xl transition-all duration-300 ${
-            (isOpen || isSheetOpen) && !isInsideBook ? "bg-[var(--foreground)] text-[var(--background)] rotate-45" : "bg-[var(--accent)] text-[var(--background)]"
+            (isOpen || isSheetOpen) && !isInsideBook && !isInsideRoom ? "bg-[var(--foreground)] text-[var(--background)] rotate-45" : "bg-[var(--accent)] text-[var(--background)]"
           }`}
-          title={isInsideBook ? "Create Ticket" : "Actions"}
+          title={isInsideBook || isInsideRoom ? "Create Ticket" : "Actions"}
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>

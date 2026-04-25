@@ -6,6 +6,7 @@ import RoomBalances from "./RoomBalances";
 import RoomMembers from "./RoomMembers";
 import AddTicketModal from "./AddTicketModal";
 import InviteLinkModal from "./InviteLinkModal";
+import ActionFab from "../ActionFab";
 
 type RoomTab = "tickets" | "balances" | "members";
 
@@ -97,18 +98,7 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
             </svg>
             <span className="hidden sm:inline">Invite</span>
           </button>
-          {tab === "tickets" && (
-            <button
-              onClick={() => setAddTicketOpen(true)}
-              className="flex items-center gap-1.5 p-2 md:px-3 md:py-1.5 bg-[var(--accent)] text-[var(--background)] rounded-lg text-[11px] font-bold hover:opacity-90 transition-opacity cursor-pointer"
-              title="Add Expense"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <path d="M12 5v14M5 12h14"/>
-              </svg>
-              <span className="hidden sm:inline">Add Expense</span>
-            </button>
-          )}
+
         </div>
       </div>
 
@@ -175,6 +165,12 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
         onClose={() => setInviteOpen(false)}
         roomId={room._id}
         roomName={room.name}
+      />
+
+      <ActionFab 
+        onAddExpense={() => setAddTicketOpen(true)}
+        onAddBook={() => {}} // Not used in room
+        isInsideRoom={true}
       />
     </div>
   );
