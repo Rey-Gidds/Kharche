@@ -110,6 +110,15 @@ export async function POST(
       splitData: convertedSplitData,
     });
 
+    // Ensure payer is always in the distribution (amount 0 if not previously selected)
+    // so they are visible as the ticket creator/payer in balances
+    if (!distribution.some((d) => d.userId === payerId)) {
+      distribution.push({ userId: payerId, amount: 0 });
+      if (!involvedUsers.includes(payerId)) {
+        involvedUsers.push(payerId);
+      }
+    }
+
     const mongoSession = await mongoose.startSession();
     mongoSession.startTransaction();
 

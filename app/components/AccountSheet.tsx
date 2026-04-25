@@ -77,7 +77,7 @@ export default function AccountSheet({ session }: AccountSheetProps) {
           {/* Action buttons */}
           <div className="flex flex-col gap-3">
             <Link
-              href="/me"
+              href="/me?tab=account"
               onClick={() => setIsOpen(false)}
               className="w-full py-3.5 text-center bg-[var(--surface)] border border-[var(--border)] rounded-2xl font-bold text-sm text-[var(--foreground)] hover:border-[var(--accent)] transition-colors"
             >

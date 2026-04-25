@@ -11,6 +11,7 @@ import InsightsView from "./InsightsView";
 import BottomNav from "./BottomNav";
 import { useSession } from "@/lib/auth-client";
 import RoomList from "./rooms/RoomList";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type ViewMode = "books" | "all-tickets" | "single-book" | "insights" | "rooms";
 
@@ -30,6 +31,10 @@ const RoomsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
 );
 
+const WalletIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+);
+
 export default function Dashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("books");
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -38,6 +43,16 @@ export default function Dashboard() {
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { data: session } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Sync viewMode with URL if needed (optional)
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    if (tab && (tab === "books" || tab === "all-tickets" || tab === "insights" || tab === "rooms")) {
+      setViewMode(tab as ViewMode);
+    }
+  }, [searchParams]);
 
   const handleSelectBook = (bookId: string, bookTitle: string) => {
     setSelectedBookTitle(bookTitle);
@@ -50,6 +65,7 @@ export default function Dashboard() {
     { key: "all-tickets", label: "Journal", icon: <ListIcon /> },
     { key: "insights", label: "Insights", icon: <ChartIcon /> },
     { key: "rooms", label: "Rooms", icon: <RoomsIcon /> },
+    { key: "wallet", label: "Wallet", icon: <WalletIcon /> },
   ];
 
   return (
@@ -60,8 +76,12 @@ export default function Dashboard() {
           <button
             key={item.key}
             onClick={() => {
-              setViewMode(item.key as ViewMode);
-              setSelectedBookId(null);
+              if (item.key === "wallet") {
+                router.push("/me?tab=wallet");
+              } else {
+                setViewMode(item.key as ViewMode);
+                setSelectedBookId(null);
+              }
             }}
             className={`pb-2 text-[11px] font-bold uppercase tracking-[0.2em] transition-all relative whitespace-nowrap cursor-pointer ${
               viewMode === item.key

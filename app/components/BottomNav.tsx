@@ -1,6 +1,7 @@
 "use client";
 
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
+import { useRouter } from "next/navigation";
 
 interface BottomNavProps {
   viewMode: string;
@@ -11,6 +12,7 @@ interface BottomNavProps {
 
 export default function BottomNav({ viewMode, setViewMode, setSelectedBookId, navItems }: BottomNavProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
+  const router = useRouter();
 
   if (!isMobile) return null;
 
@@ -23,8 +25,12 @@ export default function BottomNav({ viewMode, setViewMode, setSelectedBookId, na
             <button
               key={item.key}
               onClick={() => {
-                setViewMode(item.key as any);
-                setSelectedBookId(null);
+                if (item.key === "wallet") {
+                  router.push("/me?tab=wallet");
+                } else {
+                  setViewMode(item.key as any);
+                  setSelectedBookId(null);
+                }
               }}
               className={`flex flex-col items-center justify-center gap-1 w-16 transition-colors ${
                 isActive ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--foreground)]"

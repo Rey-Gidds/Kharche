@@ -40,6 +40,14 @@ export function useDraggableSheet({ isOpen, onClose, threshold = 100 }: UseDragg
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!isDragging) return;
     setIsDragging(false);
+    const target = e.target as HTMLElement;
+    try {
+      if (target.hasPointerCapture(e.pointerId)) {
+        target.releasePointerCapture(e.pointerId);
+      }
+    } catch (error) {
+      // Ignore if capture is already lost
+    }
     if (dragY > threshold) {
       onClose();
     } else {

@@ -2,6 +2,7 @@ import { formatCurrency } from "@/utils/formatCurrency";
 import { formatDate } from "@/utils/dateHelpers";
 import { supportedCurrencies } from "@/utils/currencyConverter";
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
+import { useRouter } from "next/navigation";
 
 interface ExpenseDrawerProps {
   drawerData: { id: string; mode: "view" | "edit" } | null;
@@ -134,6 +135,7 @@ export default function ExpenseDrawer({
   walletCurrency,
   originalExpense
 }: ExpenseDrawerProps) {
+  const router = useRouter();
   const { sheetRef, style, handlers } = useDraggableSheet({ 
     isOpen: !!drawerData, 
     onClose: () => setDrawerData(null) 
@@ -196,8 +198,15 @@ export default function ExpenseDrawer({
                 <label className="text-[11px] font-bold text-[var(--muted)] uppercase">Amount</label>
                 <input 
                   type="number"
+                  step="0.001"
+                  min="0.001"
                   value={editForm?.amount}
-                  onChange={(e) => handleInlineChange("amount", Number(e.target.value))}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const decimalParts = val.split('.');
+                    if (decimalParts.length > 1 && decimalParts[1].length > 3) return;
+                    handleInlineChange("amount", Number(val));
+                  }}
                   className="w-full bg-transparent border-b border-[var(--border)] focus:border-[var(--accent)] outline-none py-2 font-bold text-lg text-[var(--foreground)]"
                 />
               </div>
@@ -247,13 +256,21 @@ export default function ExpenseDrawer({
               />
             </div>
             <div className="pt-4 flex gap-3">
-              <button 
-                onClick={handleUpdateSubmit} 
-                disabled={isBelow}
-                className="flex-1 bg-[var(--accent)] text-[var(--background)] rounded py-3 font-bold text-sm cursor-pointer hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isBelow ? "Insufficient Funds" : "Save Changes"}
-              </button>
+              {isBelow ? (
+                <button 
+                  onClick={() => router.push('/me?tab=wallet')}
+                  className="flex-1 bg-rose-500 text-white rounded py-3 font-bold text-sm cursor-pointer hover:opacity-90 shadow-sm"
+                >
+                  Add Money to Wallet
+                </button>
+              ) : (
+                <button 
+                  onClick={handleUpdateSubmit} 
+                  className="flex-1 bg-[var(--accent)] text-[var(--background)] rounded py-3 font-bold text-sm cursor-pointer hover:opacity-90"
+                >
+                  Save Changes
+                </button>
+              )}
               <button onClick={() => setDrawerData(null)} className="px-6 border border-[var(--border)] rounded text-sm text-[var(--muted)] cursor-pointer hover:bg-[var(--background)]">
                 Cancel
               </button>

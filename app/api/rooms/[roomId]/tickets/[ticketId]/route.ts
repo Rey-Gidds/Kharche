@@ -70,6 +70,13 @@ export async function PUT(
       splitData: convertedSplitData,
     });
 
+    if (!newDistribution.some((d) => d.userId === payerId)) {
+      newDistribution.push({ userId: payerId, amount: 0 });
+      if (!involvedUsers.includes(payerId)) {
+        involvedUsers.push(payerId);
+      }
+    }
+
     const oldPayerId = ticket.creatorId.toString();
     const oldDistSorted = [...ticket.distribution].sort((a, b) => a.userId.toString().localeCompare(b.userId.toString()));
     const newDistSorted = [...newDistribution].sort((a, b) => a.userId.localeCompare(b.userId));

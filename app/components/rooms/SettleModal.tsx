@@ -13,6 +13,8 @@ interface SettleModalProps {
   currentBalance: number; // in smallest unit (positive = you owe them)
 }
 
+import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
+
 export default function SettleModal({
   isOpen, onClose, onSuccess, roomId, currency, receiverUser, currentBalance,
 }: SettleModalProps) {
@@ -21,13 +23,15 @@ export default function SettleModal({
   const [error, setError] = useState("");
 
   const maxDisplay = fromSmallestUnit(currentBalance, currency);
+  
+  const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
 
   useEffect(() => {
     if (isOpen && currentBalance > 0) {
-      setAmount(maxDisplay.toFixed(2));
+      setAmount(maxDisplay.toFixed(3).replace(/\.?0+$/, '')); // Format without trailing zeros
       setError("");
     }
-  }, [isOpen, currentBalance]);
+  }, [isOpen, currentBalance, maxDisplay]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -42,7 +46,13 @@ export default function SettleModal({
     e.preventDefault();
     const val = parseFloat(amount);
     if (isNaN(val) || val <= 0) { setError("Enter a valid positive amount."); return; }
-    if (val > maxDisplay + 0.001) { setError(`Amount cannot exceed ${maxDisplay.toFixed(2)} (your current balance).`); return; }
+    
+    const decimalRegex = /^\d+(\.\d{1,3})?$/;
+    if (!decimalRegex.test(amount)) {
+      setError("Amount can only have up to 3 decimal places."); return;
+    }
+
+    if (val > maxDisplay + 0.001) { setError(`Amount cannot exceed ${maxDisplay.toFixed(3)} (your current balance).`); return; }
     setError("");
     setLoading(true);
     try {
@@ -64,12 +74,21 @@ export default function SettleModal({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center sm:p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[var(--surface)] w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden">
-        <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto mt-4 mb-2 sm:hidden" />
-        <div className="flex items-center justify-between px-5 pb-4 sm:p-6 sm:border-b border-[var(--border)]">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={onClose} />
+      <div 
+        ref={sheetRef}
+        style={style}
+        className="relative bg-[var(--surface)] w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+      >
+        <div 
+          className="w-full pt-4 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"
+          {...handlers}
+        >
+          <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto pointer-events-none" />
+        </div>
+        <div className="flex items-center justify-between px-5 pb-4 sm:p-6 sm:pt-6 sm:border-b border-[var(--border)]">
           <h2 className="text-xl font-playfair font-bold text-[var(--foreground)]">Settle Up</h2>
-          <button onClick={onClose} className="p-2 hover:bg-[var(--border)] rounded-full transition-colors text-[var(--muted)]">
+          <button onClick={onClose} className="p-2 hover:bg-[var(--border)] rounded-full transition-colors text-[var(--muted)] cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
@@ -96,9 +115,14 @@ export default function SettleModal({
               <input
                 type="number"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                step="0.01"
-                min="0.01"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const decimalParts = val.split('.');
+                  if (decimalParts.length > 1 && decimalParts[1].length > 3) return;
+                  setAmount(val);
+                }}
+                step="0.001"
+                min="0.001"
                 max={maxDisplay}
                 required
                 autoFocus
@@ -106,7 +130,7 @@ export default function SettleModal({
               />
               <button
                 type="button"
-                onClick={() => setAmount(maxDisplay.toFixed(2))}
+                onClick={() => setAmount(maxDisplay.toFixed(3).replace(/\.?0+$/, ''))}
                 className="text-[10px] font-bold text-[var(--accent)] uppercase tracking-widest hover:opacity-70 cursor-pointer"
               >
                 Full

@@ -15,6 +15,8 @@ interface AddTicketModalProps {
   initialData?: any; // Pass existing ticket data for editing
 }
 
+import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
+
 export default function AddTicketModal({ isOpen, onClose, onSuccess, room, currentUserId, initialData }: AddTicketModalProps) {
   const members: any[] = room?.users ?? [];
   const currency: string = room?.currency ?? "INR";
@@ -28,6 +30,8 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
   const [splitData, setSplitData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
 
   // Populate on open
   useEffect(() => {
@@ -46,11 +50,6 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
             initialData.distribution.forEach((d: any) => {
                 sd[d.userId._id || d.userId] = fromSmallestUnit(d.amount, currency).toString();
             });
-        } else if (initialData.splitType === "percentage" || initialData.splitType === "ratio") {
-            // Note: we can't reliably reconstruct the exact percentage/ratio inputs from the amounts without saving them.
-            // For now, if they edit a %/ratio split, they might have to re-enter it or we fallback to equal/manual.
-            // A perfect implementation would store the user's raw inputs in the ticket model.
-            // Since we don't, we will set them empty and let the user re-enter, or they can switch to manual.
         }
         setSplitData(sd);
       } else {
@@ -128,7 +127,15 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
     e.preventDefault();
     setError("");
     if (!title.trim()) { setError("Title is required."); return; }
-    if (!amount || parseFloat(amount) <= 0) { setError("Enter a valid amount."); return; }
+    
+    const parsedAmount = parseFloat(amount);
+    if (!amount || parsedAmount <= 0) { setError("Enter a valid amount greater than 0."); return; }
+    
+    const decimalRegex = /^\d+(\.\d{1,3})?$/;
+    if (!decimalRegex.test(amount)) {
+      setError("Amount can only have up to 3 decimal places."); return;
+    }
+
     if (involvedUsers.length === 0) { setError("At least one member must be involved."); return; }
 
     // Build splitData payload
@@ -185,10 +192,19 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={onClose} />
-      <div className="relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200">
-        <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto mt-4 mb-2 sm:hidden shrink-0" />
+      <div 
+        ref={sheetRef}
+        style={style}
+        className="relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+      >
+        <div 
+          className="w-full pt-4 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"
+          {...handlers}
+        >
+          <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto pointer-events-none" />
+        </div>
         
-        <div className="flex items-center justify-between px-5 pb-5 sm:p-6 border-b border-[var(--border)] shrink-0">
+        <div className="flex items-center justify-between px-5 pb-5 sm:p-6 sm:pt-6 border-b border-[var(--border)] shrink-0">
           <h2 className="text-xl font-playfair font-bold text-[var(--foreground)]">{initialData ? "Edit Expense" : "Add Expense"}</h2>
           <button onClick={onClose} className="p-2 -mr-2 hover:bg-[var(--border)] rounded-full transition-colors text-[var(--muted)] bg-[var(--background)] sm:bg-transparent">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
@@ -231,8 +247,8 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
               </div>
             </div>
 
-            {/* Amount & Payer */}
-            <div className="grid grid-cols-2 gap-5">
+            {/* Amount */}
+            <div className="grid grid-cols-1 gap-5">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">
                   Amount ({currency})
@@ -240,27 +256,18 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
                 <input
                   type="number"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const decimalParts = val.split('.');
+                    if (decimalParts.length > 1 && decimalParts[1].length > 3) return;
+                    setAmount(val);
+                  }}
                   placeholder="0.00"
-                  step="0.01"
-                  min="0.01"
+                  step="0.001"
+                  min="0.001"
                   required
                   className="w-full py-2 bg-transparent border-b border-[var(--border)] focus:border-[var(--accent)] outline-none font-bold text-lg text-[var(--foreground)]"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Paid by</label>
-                <select
-                  value={payerId}
-                  onChange={(e) => setPayerId(e.target.value)}
-                  className="w-full py-2 bg-transparent border-b border-[var(--border)] focus:border-[var(--accent)] outline-none text-[var(--foreground)] cursor-pointer font-medium"
-                >
-                  {members.map((m: any) => (
-                    <option key={m._id} value={m._id} className="bg-[var(--surface)]">
-                      {m._id === currentUserId ? `${m.name} (you)` : m.name}
-                    </option>
-                  ))}
-                </select>
               </div>
             </div>
 

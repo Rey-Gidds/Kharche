@@ -7,6 +7,7 @@ import { supportedCurrencies, convertCurrency, THRESHOLD_INR } from "@/utils/cur
 import { useSession } from "@/lib/auth-client";
 import { useWallet } from "@/context/WalletContext";
 import ErrorMessage from "./ErrorMessage";
+import { useRouter } from "next/navigation";
 
 const CATEGORY_LIMIT = 20;
 const DESCRIPTION_LIMIT = 100;
@@ -30,6 +31,7 @@ export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProp
   const { showNotification } = useNotification();
   const { data: session } = useSession();
   const { walletBalance, walletCurrency, refetchWallet } = useWallet();
+  const router = useRouter();
   console.log("Wallet Currency:", walletCurrency);
 
   const costInWalletCurrency = amount ? convertCurrency(Number(amount), currency, walletCurrency) : 0;
@@ -53,6 +55,21 @@ export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProp
     }
 
     const finalAmount = Number(amount);
+    if (finalAmount <= 0) {
+      setError("Amount must be greater than 0");
+      showNotification("Amount must be greater than 0", "error");
+      setLoading(false);
+      return;
+    }
+
+    const decimalRegex = /^\d+(\.\d{1,3})?$/;
+    if (!decimalRegex.test(amount)) {
+      setError("Amount can only have up to 3 decimal places");
+      showNotification("Amount can only have up to 3 decimal places", "error");
+      setLoading(false);
+      return;
+    }
+
     if (finalAmount > AMOUNT_LIMIT) {
       setError(`Amount cannot exceed ${AMOUNT_LIMIT.toLocaleString()}`);
       showNotification(`Amount cannot exceed ${AMOUNT_LIMIT.toLocaleString()}`, "error");
@@ -128,8 +145,15 @@ export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProp
               <div className="flex w-full justify-between gap-3 border-b border-[var(--border)] focus-within:border-[var(--accent)]">
                 <input
                   type="number"
+                  step="0.001"
+                  min="0.001"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const decimalParts = val.split('.');
+                    if (decimalParts.length > 1 && decimalParts[1].length > 3) return;
+                    setAmount(val);
+                  }}
                   placeholder="0.00"
                   className="flex-grow py-2 bg-transparent outline-none font-bold text-lg text-[var(--foreground)] min-w-0"
                   required
@@ -205,13 +229,23 @@ export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProp
         </div>
 
         <div className="pt-4 border-t border-[var(--border)] mt-auto shrink-0 bg-[var(--surface)]">
-          <button
-            type="submit"
-            disabled={isBelowThreshold || loading}
-            className="w-full py-3.5 bg-[var(--accent)] text-[var(--background)] font-bold text-xs uppercase tracking-widest rounded-lg cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-sm"
-          >
-            {loading ? "Registering..." : isBelowThreshold ? "Insufficient Funds" : "Submit Entry"}
-          </button>
+          {isBelowThreshold ? (
+            <button
+              type="button"
+              onClick={() => router.push('/me?tab=wallet')}
+              className="w-full py-3.5 bg-rose-500 text-white font-bold text-xs uppercase tracking-widest rounded-lg cursor-pointer hover:opacity-90 shadow-sm"
+            >
+              Add Money to Wallet
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3.5 bg-[var(--accent)] text-[var(--background)] font-bold text-xs uppercase tracking-widest rounded-lg cursor-pointer hover:opacity-90 disabled:opacity-50 shadow-sm"
+            >
+              {loading ? "Registering..." : "Submit Entry"}
+            </button>
+          )}
         </div>
       </form>
     </div>

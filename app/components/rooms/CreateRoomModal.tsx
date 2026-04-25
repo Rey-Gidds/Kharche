@@ -10,11 +10,15 @@ interface CreateRoomModalProps {
   onSuccess: (room: any) => void;
 }
 
+import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
+
 export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRoomModalProps) {
   const [name, setName] = useState("");
   const [currency, setCurrency] = useState("INR");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
 
   useEffect(() => {
     if (!isOpen) { setName(""); setCurrency("INR"); setError(""); }
@@ -52,13 +56,21 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRo
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-[var(--surface)] w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden">
-        {/* Mobile drag handle */}
-        <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto mt-4 mb-2 sm:hidden" />
-        <div className="flex items-center justify-between px-5 pb-4 sm:p-6 sm:border-b border-[var(--border)]">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={onClose} />
+      <div 
+        ref={sheetRef}
+        style={style}
+        className="relative bg-[var(--surface)] w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+      >
+        <div 
+          className="w-full pt-4 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"
+          {...handlers}
+        >
+          <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto pointer-events-none" />
+        </div>
+        <div className="flex items-center justify-between px-5 pb-4 sm:p-6 sm:pt-6 sm:border-b border-[var(--border)]">
           <h2 className="text-xl font-playfair font-bold text-[var(--foreground)]">Create a Room</h2>
-          <button onClick={onClose} className="p-2 hover:bg-[var(--border)] rounded-full transition-colors text-[var(--muted)]">
+          <button onClick={onClose} className="p-2 hover:bg-[var(--border)] rounded-full transition-colors text-[var(--muted)] cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>

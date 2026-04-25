@@ -27,4 +27,4 @@ export function convertCurrency(amount: number, from: string, to: string): numbe
 }
 
 export const supportedCurrencies = Object.keys(EXCHANGE_RATES);
-export const THRESHOLD_INR = 1000;
+export const THRESHOLD_INR = 83;
