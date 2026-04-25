@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -11,6 +11,9 @@ interface BottomSheetProps {
 
 export default function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null);
+  const [dragY, setDragY] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartY = useRef(0);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -20,6 +23,7 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
     if (isOpen) {
       document.body.style.overflow = "hidden";
       document.addEventListener("keydown", handleEscape);
+      setDragY(0); // Reset drag state when opening
     }
 
     return () => {
@@ -29,6 +33,37 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    // Only allow drag from the header/handle area to prevent interfering with inner scrolling
+    const target = e.target as HTMLElement;
+    if (sheetRef.current && target.closest('.drag-handle-area')) {
+      // Capture pointer so movement outside the element is still tracked
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      dragStartY.current = e.clientY;
+      setIsDragging(true);
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    const currentY = e.clientY;
+    const deltaY = currentY - dragStartY.current;
+    if (deltaY > 0) {
+      // Only drag downwards
+      setDragY(deltaY);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    if (dragY > 100) {
+      onClose();
+    } else {
+      setDragY(0);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end">
@@ -42,14 +77,30 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
       <div 
         ref={sheetRef}
         className="relative bg-[var(--surface)] w-full rounded-t-2xl border-t border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full duration-300 max-h-[90vh] flex flex-col"
+        style={{ 
+          transform: `translateY(${dragY}px)`,
+          transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+        }}
       >
-        {/* Handle bar */}
-        <div className="w-full flex justify-center pt-3 pb-1 shrink-0">
-          <div className="w-12 h-1.5 bg-[var(--border)] rounded-full"></div>
+        {/* Handle bar area (drag target) */}
+        <div 
+          className="w-full pt-3 pb-1 shrink-0 drag-handle-area cursor-grab active:cursor-grabbing touch-none"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
+          <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto pointer-events-none"></div>
         </div>
 
         {title && (
-          <div className="flex items-center justify-between px-6 pb-4 pt-2 border-b border-[var(--border)] shrink-0">
+          <div 
+            className="flex items-center justify-between px-6 pb-4 pt-2 border-b border-[var(--border)] shrink-0 drag-handle-area touch-none"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+          >
             <h2 className="text-xl font-playfair font-bold text-[var(--foreground)]">{title}</h2>
             <button 
               onClick={onClose}

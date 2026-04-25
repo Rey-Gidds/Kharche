@@ -33,22 +33,21 @@ export default function MinimalBarChart({ data, height = 200 }: MinimalBarChartP
 
   return (
     <div className="w-full space-y-4 font-inter relative">
-      {!hasData && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--background)]/20 backdrop-blur-[1px] rounded-xl border border-dashed border-[var(--border)]">
-          <div className="text-center group">
-            <div className="bg-[var(--surface)] border border-[var(--border)] w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm group-hover:scale-110 transition-transform">
-               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted)]"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
-            </div>
-            <p className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest">No entries found for this selection</p>
-            <p className="text-[9px] text-[var(--muted)] opacity-60 mt-1 uppercase">Try selecting a different period or adding expenses</p>
-          </div>
-        </div>
-      )}
-
       <div 
         className="relative flex items-end gap-1 px-2 overflow-x-auto no-scrollbar" 
         style={{ height: `${height}px` }}
       >
+        {!hasData && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[var(--background)]/40 backdrop-blur-sm rounded-xl border border-dashed border-[var(--border)]">
+            <div className="text-center group p-4">
+              <div className="bg-[var(--surface)] border border-[var(--border)] w-10 h-10 md:w-12 md:h-12 rounded-full flex items-center justify-center mx-auto mb-2 md:mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--muted)]"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="18" y2="12"/><line x1="9" x2="15" y1="15" y2="15"/></svg>
+              </div>
+              <p className="text-[9px] md:text-[11px] font-bold text-[var(--muted)] uppercase tracking-widest">No entries found for this selection</p>
+            </div>
+          </div>
+        )}
+
         {/* Y-Axis Grid Lines */}
         <div className="absolute inset-x-0 top-0 h-full flex flex-col justify-between pointer-events-none opacity-5">
           <div className="border-t border-[var(--foreground)] w-full" />

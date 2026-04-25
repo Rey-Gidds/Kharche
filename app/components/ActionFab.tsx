@@ -43,9 +43,15 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook, isIns
     }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <>
-      <div className="fixed bottom-[74px] md:bottom-8 right-4 md:right-8 z-40 flex flex-col items-end gap-4" ref={menuRef}>
+      <div 
+        className="fixed md:bottom-4 right-4 md:right-8 z-40 flex flex-col items-end gap-4" 
+        style={{ bottom: "max(80px, calc(80px + env(safe-area-inset-bottom)))" }}
+        ref={menuRef}
+      >
         {/* Desktop Upward Menu */}
         {!isInsideBook && !isInsideRoom && !isMobile && (
           <div 
@@ -103,7 +109,7 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook, isIns
       </div>
 
       {/* Mobile Bottom Sheet Menu */}
-      {mounted && createPortal(
+      {isSheetOpen && (
         <BottomSheet isOpen={isSheetOpen} onClose={() => setIsSheetOpen(false)} title="Create New">
           <div className="space-y-4">
             <button
@@ -144,9 +150,9 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook, isIns
               </div>
             </button>
           </div>
-        </BottomSheet>,
-        document.body
+        </BottomSheet>
       )}
-    </>
+    </>,
+    document.body
   );
 }
