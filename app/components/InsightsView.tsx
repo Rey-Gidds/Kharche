@@ -134,8 +134,8 @@ export default function InsightsView() {
         </button>
       </div>
 
-      {/* Summary Cards — horizontal scroll on mobile, 3-col grid on desktop */}
-      <div className="flex md:grid md:grid-cols-3 overflow-x-auto snap-x snap-mandatory gap-3 md:gap-6 pb-2 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 no-scrollbar">
+      {/* Summary Cards — vertical scroll on mobile, 3-col grid on desktop */}
+      <div className="flex flex-col md:flex-row md:grid md:grid-cols-3 overflow-y-scroll snap-y snap-mandatory gap-3 md:gap-6 pb-2 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 no-scrollbar">
         <div className="min-w-[70vw] md:min-w-0 snap-center bg-[var(--surface)] border border-[var(--border)] p-6 rounded-2xl shadow-sm transition-transform hover:scale-[1.02]">
           <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-[0.2em] mb-2">Aggregate Spend</p>
           <p className="text-2xl font-playfair font-bold text-[var(--foreground)]">
