@@ -108,9 +108,12 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
 
           <div className="p-8 space-y-6">
             {/* App branding */}
-            <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--muted)]">
-              TrackBook · Room Invite
-            </p>
+            <div className="flex items-center gap-2">
+              <img src="/logo.png" alt="Kharche Logo" className="w-5 h-5 object-contain" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-[var(--muted)]">
+                Kharche · Room Invite
+              </p>
+            </div>
 
             {/* Room info */}
             <div className="space-y-1">

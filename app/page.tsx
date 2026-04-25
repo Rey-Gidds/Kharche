@@ -20,11 +20,14 @@ export default async function Home() {
     <main className="min-h-screen bg-[var(--background)] p-0 pt-4 px-4 md:p-6 md:pt-12 md:px-12 font-inter selection:bg-[var(--border)] selection:text-[var(--foreground)] pb-24 md:pb-12">
       <div className="max-w-4xl mx-auto md:space-y-12">
         <div className="flex items-center justify-between md:border-b border-[var(--border)] pb-4 md:pb-8">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-playfair font-bold text-[var(--foreground)] tracking-tight">
-              TrackBook
-            </h1>
-            <p className="hidden md:block text-[10px] font-bold text-[var(--muted)] uppercase tracking-[0.2em] mt-1">Your expense tracker.</p>
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Kharche Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain" />
+            <div>
+              <h1 className="text-2xl md:text-3xl font-playfair font-bold text-[var(--foreground)] tracking-tight">
+                Kharche
+              </h1>
+              <p className="hidden md:block text-[10px] font-bold text-[var(--muted)] uppercase tracking-[0.2em] mt-1">Your expense tracker.</p>
+            </div>
           </div>
           
           {/* Desktop Right Header */}

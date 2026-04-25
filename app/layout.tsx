@@ -20,7 +20,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Premium Expense Tracker",
+  title: "Kharche",
   description: "Manage your multi-currency expenses with style.",
 };
 

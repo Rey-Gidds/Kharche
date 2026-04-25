@@ -48,7 +48,7 @@ export const auth = betterAuth({
             }
 
             await resend.emails.send({
-                from: "TrackBook <onboarding@resend.dev>",
+                from: "Kharche <onboarding@resend.dev>",
                 to: user.email,
                 subject: "Reset your password",
                 html: `<p>Click <a href="${url}">here</a> to reset your password. The link will expire in 1 hour.</p><p>If the link doesn't work, copy and paste this direct URL: ${url}</p>`,
@@ -72,7 +72,7 @@ export const auth = betterAuth({
             }
 
             await resend.emails.send({
-                from: "TrackBook <onboarding@resend.dev>",
+                from: "Kharche <onboarding@resend.dev>",
                 to: user.email,
                 subject: "Verify your email",
                 html: `<p>Click <a href="${url}">here</a> to verify your email address. The link will expire in 24 hours.</p><p>If the link doesn't work, copy and paste this direct URL: ${url}</p>`,
