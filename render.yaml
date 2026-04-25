@@ -2,7 +2,6 @@ services:
   - type: web
     name: kharche
     runtime: node
-    rootDir: expense_tracker
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:
