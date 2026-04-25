@@ -78,7 +78,7 @@ export default function MePage() {
                 <p className="text-[var(--muted)] mt-2">Manage your profile and wallet settings.</p>
             </header>
 
-            <main className="px-6 max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+            <main className="px-6 max-w-4xl mx-auto flex flex-col md:grid md:grid-cols-2 gap-8">
                 {/* Profile Card */}
                 <section className="bg-[var(--surface)] p-8 rounded-2xl border border-[var(--border)] shadow-sm">
                     <div className="flex items-center gap-4 mb-8">
@@ -122,16 +122,16 @@ export default function MePage() {
 
                         <div className="mb-8">
                             <span className="block text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1">Current Balance</span>
-                            <div className="flex items-baseline justify-between gap-2">
+                            <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-4 md:gap-2">
                                 <div className="flex items-baseline gap-2">
                                     <span className="text-4xl font-serif font-bold">
                                         {walletBalance?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || "0"}
                                     </span>
                                     <span className="text-lg font-medium text-[var(--muted)]">{walletCurrency}</span>
                                 </div>
-                                <div className="relative group/curr">
-                                   <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--surface-light)] rounded-md border border-[var(--border)] hover:border-[var(--accent)] transition-all cursor-pointer">
-                                        <Globe className="w-3 h-3 text-[var(--muted)]" />
+                                <div className="relative group/curr w-full md:w-auto mt-2 md:mt-0">
+                                   <div className="flex items-center gap-2 px-4 py-3 md:px-2 md:py-1 bg-[var(--surface-light)] rounded-xl md:rounded-md border border-[var(--border)] hover:border-[var(--accent)] transition-all cursor-pointer">
+                                        <Globe className="w-4 h-4 md:w-3 md:h-3 text-[var(--muted)]" />
                                         <select 
                                             value={walletCurrency}
                                             onChange={async (e) => {
@@ -143,22 +143,22 @@ export default function MePage() {
                                                 setLoading(false);
                                                 showNotification(`Wallet currency changed to ${newCurr}`, "success");
                                             }}
-                                            className="bg-transparent text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer appearance-none pr-1"
+                                            className="bg-transparent text-xs md:text-[10px] font-bold uppercase tracking-wider outline-none cursor-pointer appearance-none flex-grow"
                                         >
                                             {supportedCurrencies.map(curr => <option key={curr} value={curr} className="bg-[var(--surface)]">{curr}</option>)}
                                         </select>
                                    </div>
                                 </div>
                             </div>
-                            <p className="text-xs text-[var(--muted)] mt-2 italic">* Minimum threshold of {thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency} ({ (1000).toLocaleString() } INR equivalent) required for expenses.</p>
+                            <p className="text-xs text-[var(--muted)] mt-4 md:mt-2 italic">* Minimum threshold of {thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency} ({ (1000).toLocaleString() } INR equivalent) required for expenses.</p>
                         </div>
                     </div>
 
                     <form onSubmit={handleAddMoney} className="space-y-4 pt-6 border-t border-[var(--border)]">
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                             <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Add Pocket Money</label>
-                            <div className="flex gap-2">
-                                <div className="flex-grow flex items-center border-b border-[var(--border)] focus-within:border-[var(--accent)] transition-colors">
+                            <div className="flex flex-col md:flex-row gap-3 md:gap-2">
+                                <div className="flex-grow flex items-center border border-[var(--border)] md:border-0 md:border-b rounded-xl md:rounded-none px-4 py-2 md:px-0 focus-within:border-[var(--accent)] transition-colors">
                                     <span className="text-[var(--muted)] mr-2 font-medium">{walletCurrency}</span>
                                     <input 
                                         type="number" 
@@ -172,7 +172,7 @@ export default function MePage() {
                                 <button 
                                     type="submit"
                                     disabled={loading}
-                                    className="px-6 py-2 bg-[var(--foreground)] text-[var(--background)] rounded-lg font-bold text-xs uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2 shrink-0"
+                                    className="w-full md:w-auto px-6 py-4 md:py-2 bg-[var(--foreground)] text-[var(--background)] rounded-xl md:rounded-lg font-bold text-xs uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 shrink-0 shadow-sm"
                                 >
                                     {loading ? "..." : <><Plus className="w-3 h-3" /> Add</>}
                                 </button>
