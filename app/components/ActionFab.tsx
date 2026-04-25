@@ -45,7 +45,7 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook, isIns
 
   return (
     <>
-      <div className="fixed bottom-20 md:bottom-8 right-4 md:right-8 z-40 flex flex-col items-end gap-4" ref={menuRef}>
+      <div className="fixed bottom-[74px] md:bottom-8 right-4 md:right-8 z-40 flex flex-col items-end gap-4" ref={menuRef}>
         {/* Desktop Upward Menu */}
         {!isInsideBook && !isInsideRoom && !isMobile && (
           <div 

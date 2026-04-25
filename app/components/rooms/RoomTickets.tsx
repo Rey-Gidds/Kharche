@@ -220,16 +220,16 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
                 <div className="flex items-center gap-2">
                   <p className="font-semibold text-sm text-[var(--foreground)] truncate">{ticket.title}</p>
                 </div>
-                <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                <p className="text-[10px] md:text-[11px] text-[var(--muted)] mt-0.5 truncate">
                   {isSettlement
                     ? `${payer?.name ?? "?"} → ${ticket.bearerId?.name ?? "?"}`
-                    : `Paid by ${isPayerYou ? "you" : payer?.name ?? "?"}`
+                    : `By ${isPayerYou ? "you" : payer?.name ?? "?"}`
                   }
                   {" · "}
                   {formatDate(ticket.createdAt)}
                 </p>
                 {!isSettlement && (
-                  <div className="flex items-center gap-1.5 mt-1.5">
+                  <div className="hidden sm:flex items-center gap-1.5 mt-1.5">
                     <SplitBadge splitType={ticket.splitType} />
                     {ticket.involvedUsers?.length > 0 && (
                       <span className="text-[9px] text-[var(--muted)]">{ticket.involvedUsers.length} people</span>
