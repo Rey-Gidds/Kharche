@@ -3,7 +3,7 @@ import { connectDB } from "@/lib/db";
 import Expense from "@/models/Expense";
 import ExpenseBook from "@/models/ExpenseBook";
 import User from "@/models/User";
-import { convertCurrency } from "@/utils/currencyConverter";
+import { convertCurrency, THRESHOLD_INR } from "@/utils/currencyConverter";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -47,8 +47,8 @@ export async function POST(req: Request) {
             const expenseAmountInWalletCurrency = convertCurrency(Number(amount), currency || "USD", walletCurrency);
             const newBalance = user.walletBalance - expenseAmountInWalletCurrency;
 
-            // Threshold logic: 1000 INR equivalent
-            const thresholdInWalletCurrency = convertCurrency(1000, "INR", walletCurrency);
+            // Threshold logic
+            const thresholdInWalletCurrency = convertCurrency(THRESHOLD_INR, "INR", walletCurrency);
 
             if (newBalance < thresholdInWalletCurrency) {
                 await mongoSession.abortTransaction();
