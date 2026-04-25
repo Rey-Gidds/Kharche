@@ -1,16 +1,20 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useMediaQuery } from "@/app/hooks/useMediaQuery";
+import BottomSheet from "./BottomSheet";
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  sheet?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, sheet }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -29,6 +33,14 @@ export default function Modal({ isOpen, onClose, title, children }: ModalProps) 
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  if (isMobile || sheet) {
+    return (
+      <BottomSheet isOpen={isOpen} onClose={onClose} title={title}>
+        {children}
+      </BottomSheet>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
