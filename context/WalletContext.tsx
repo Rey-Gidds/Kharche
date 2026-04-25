@@ -80,7 +80,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             walletCurrency,
             loading: loading && walletBalance === 0, // Only show loading if we don't have a balance yet
             error, 
-            refetchWallet: (user?: any) => fetchWallet(user, true), // Default to silent for manual refetches
+            /**
+             * Refetches the wallet balance.
+             * @param user The user object (optional, defaults to session user).
+             * @param silent If true, does not set loading state to true during fetch. Defaults to true.
+             */
+            refetchWallet: (user?: any, silent?: boolean) => fetchWallet(user, silent ?? true), // Default to silent for manual refetches
             setWalletDefaultCurrency: (currency: string) => setWalletDefaultCurrency(currency)
         }}>
             {children}
