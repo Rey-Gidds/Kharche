@@ -5,9 +5,10 @@ interface ExpenseBookCardProps {
   description?: string;
   createdAt: string;
   onClick: () => void;
+  onOptionsClick: (e: React.MouseEvent) => void;
 }
 
-export default function ExpenseBookCard({ title, description, createdAt, onClick }: ExpenseBookCardProps) {
+export default function ExpenseBookCard({ title, description, createdAt, onClick, onOptionsClick }: ExpenseBookCardProps) {
   const formattedDate = new Date(createdAt).toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
@@ -22,30 +23,35 @@ export default function ExpenseBookCard({ title, description, createdAt, onClick
   return (
     <div 
       onClick={onClick}
-      className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 h-[220px] flex flex-col justify-between cursor-pointer hover:border-[var(--accent)] transition-all overflow-hidden"
+      className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 md:p-6 h-[160px] md:h-[220px] flex flex-col justify-between cursor-pointer hover:border-[var(--accent)] transition-all overflow-hidden"
     >
-      <div className="absolute top-4 right-4 text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {/* 3-dots options button */}
+      <button
+        onClick={onOptionsClick}
+        className="absolute top-3 right-3 p-1.5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--background)] rounded-full transition-colors z-10 opacity-0 group-hover:opacity-100 focus:opacity-100"
+        title="Options"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="1"></circle>
           <circle cx="12" cy="5" r="1"></circle>
           <circle cx="12" cy="19" r="1"></circle>
         </svg>
-      </div>
+      </button>
 
-      <div className="space-y-4">
-        <h3 className="text-lg font-playfair font-bold text-[var(--foreground)] pr-6 line-clamp-2">
+      <div className="space-y-2 md:space-y-4">
+        <h3 className="text-sm md:text-lg font-playfair font-bold text-[var(--foreground)] pr-6 line-clamp-1 md:line-clamp-2">
           {title}
         </h3>
         {description && (
-          <p className="text-[11px] text-[var(--muted)] line-clamp-3 leading-relaxed uppercase tracking-wider font-medium">
+          <p className="text-[10px] md:text-[11px] text-[var(--muted)] line-clamp-2 md:line-clamp-3 leading-relaxed uppercase tracking-wider font-medium">
             {description}
           </p>
         )}
       </div>
 
-      <div className="flex flex-col items-end">
+      <div className="flex flex-col items-start md:items-end">
         <p className="text-[9px] font-bold text-[var(--muted)] opacity-60 uppercase tracking-[0.2em]">
-          {formattedDate} {formattedTime}
+          {formattedDate} <span className="hidden md:inline">{formattedTime}</span>
         </p>
       </div>
       
