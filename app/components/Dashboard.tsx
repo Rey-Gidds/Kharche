@@ -69,7 +69,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto mt-0 md:mt-8 space-y-8 md:space-y-12">
+    <div className="max-w-4xl mx-auto mt-0 md:mt-8 space-y-4 md:space-y-12">
       {/* Navigation / Secondary Header (Desktop Only) */}
       <div className="hidden md:flex items-center gap-6 border-b border-[var(--border)] pb-4 overflow-x-auto no-scrollbar">
         {navItems.map((item) => (
@@ -98,7 +98,7 @@ export default function Dashboard() {
       </div>
 
       {/* Main Content Area — views are always mounted but hidden for caching/persistence */}
-      <section className="min-h-[400px]">
+      <section className="min-h-[200px] md:min-h-[400px]">
         <div className={viewMode === "books" ? "block animate-in fade-in duration-300" : "hidden"}>
           <div className="space-y-6 md:space-y-8">
             <h2 className="hidden md:block text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">Workspaces</h2>

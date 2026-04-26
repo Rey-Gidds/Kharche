@@ -57,7 +57,7 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
   ];
 
   return (
-    <div className="space-y-8 pb-24">
+    <div className="space-y-4 md:space-y-8 pb-12 md:pb-24">
       {/* Room Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-start gap-3 min-w-0">

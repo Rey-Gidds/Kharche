@@ -143,8 +143,8 @@ function MePageContent() {
     };
 
     return (
-        <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)] pb-20">
-            <header className="px-6 pt-12 pb-8 max-w-4xl mx-auto">
+        <div className="min-h-screen md:min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] pb-10 md:pb-20">
+            <header className="px-6 pt-6 md:pt-12 pb-6 md:pb-8 max-w-4xl mx-auto">
                 <Link href="/" className="inline-flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors mb-6 group text-sm font-medium">
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                     Home
@@ -279,7 +279,7 @@ function MePageContent() {
                                     </div>
                                     </div>
                                 </div>
-                                <p className="text-xs text-[var(--muted)] mt-4 md:mt-2 italic">* Minimum threshold of {thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency} ({ (1000).toLocaleString() } INR equivalent) required for expenses.</p>
+                                <p className="text-xs text-[var(--muted)] mt-4 md:mt-2 italic">* Minimum threshold of {thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency} ({ (83).toLocaleString() } INR equivalent) required for expenses.</p>
                             </div>
                         </div>
 

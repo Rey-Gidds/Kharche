@@ -161,7 +161,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
 
   if (books.length === 0) {
     return (
-      <div className="text-center py-20 border-2 border-dashed border-[var(--border)] rounded-2xl">
+      <div className="text-center py-12 md:py-20 border-2 border-dashed border-[var(--border)] rounded-2xl">
         <p className="text-[12px] font-bold text-[var(--muted)] uppercase tracking-[0.3em]">No collections found</p>
       </div>
     );

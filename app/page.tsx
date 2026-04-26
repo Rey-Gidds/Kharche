@@ -6,6 +6,7 @@ import SignOutButton from "@/app/components/SignOutButton";
 import Dashboard from "@/app/components/Dashboard";
 import WalletBalanceDisplay from "@/app/components/WalletBalanceDisplay";
 import AccountSheet from "@/app/components/AccountSheet";
+import DownloadLink from "@/app/components/DownloadLink";
 import { Suspense } from "react";
 
 export default async function Home() {
@@ -37,6 +38,7 @@ export default async function Home() {
                initialBalance={(session.user as any).walletBalance} 
                currency={(session.user as any).currency || "INR"}
             />
+            <DownloadLink variant="icon" />
             <Link href="/me" className="flex flex-col items-end group">
                 <p className="text-[10px] font-bold text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors uppercase tracking-widest leading-loose">{session.user.name}</p>
                 <span className="text-[9px] text-[var(--muted)] group-hover:text-[var(--accent)] transition-colors">Manage Account</span>

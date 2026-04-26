@@ -4,6 +4,7 @@ import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import DownloadLink from "@/app/components/DownloadLink";
 
 export default function SignIn() {
   const [email, setEmail] = useState("");
@@ -150,11 +151,20 @@ export default function SignIn() {
           </button>
         </div>
         
-        <div className="text-center text-sm">
-          <span className="text-gray-500 dark:text-zinc-400">Don't have an account? </span>
-          <Link href="/sign-up" className="text-blue-600 font-medium hover:underline dark:text-blue-400">
-            Sign Up
-          </Link>
+        <div className="text-center text-sm space-y-4">
+          <div>
+            <span className="text-gray-500 dark:text-zinc-400">Don't have an account? </span>
+            <Link href="/sign-up" className="text-blue-600 font-medium hover:underline dark:text-blue-400">
+              Sign Up
+            </Link>
+          </div>
+          <div className="pt-2 border-t border-gray-100 dark:border-zinc-800">
+            <DownloadLink 
+              variant="text" 
+              className="text-gray-400 hover:text-gray-600 dark:hover:text-zinc-300 transition-colors inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider"
+              title="Download App"
+            />
+          </div>
         </div>
       </div>
     </div>

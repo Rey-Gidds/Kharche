@@ -120,7 +120,7 @@ export default function ExpenseList({ bookId, bookTitle, onBack, refreshTrigger 
 
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
       <div className="flex flex-row items-center justify-between border-b border-[var(--border)] pb-4 gap-4">
         <div className="flex items-center gap-4">
           {onBack && (

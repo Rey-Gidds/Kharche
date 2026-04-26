@@ -5,6 +5,7 @@ import BottomSheet from "./BottomSheet";
 import { useWallet } from "@/context/WalletContext";
 import SignOutButton from "./SignOutButton";
 import Link from "next/link";
+import DownloadLink from "./DownloadLink";
 
 interface AccountSheetProps {
   session: any;
@@ -76,6 +77,9 @@ export default function AccountSheet({ session }: AccountSheetProps) {
 
           {/* Action buttons */}
           <div className="flex flex-col gap-3">
+            <div onClick={() => setIsOpen(false)}>
+              <DownloadLink variant="button" />
+            </div>
             <Link
               href="/me?tab=account"
               onClick={() => setIsOpen(false)}

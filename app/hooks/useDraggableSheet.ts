@@ -53,16 +53,24 @@ export function useDraggableSheet({ isOpen, onClose, threshold = 100 }: UseDragg
       // Ignore if capture is already lost
     }
     if (currentDragY.current > threshold) {
-      onClose();
+      // Animate out before closing
+      const outDistance = typeof window !== 'undefined' ? window.innerHeight : 1000;
+      setDragY(outDistance);
+      setTimeout(() => {
+        onClose();
+        // Reset state after unmount so it's ready for next time
+        setDragY(0);
+        currentDragY.current = 0;
+      }, 200);
+    } else {
+      setDragY(0);
+      currentDragY.current = 0;
     }
-    
-    setDragY(0);
-    currentDragY.current = 0;
   };
 
   const style = {
     transform: `translateY(${dragY}px)`,
-    transition: isDragging ? 'none' : 'transform 0.2s ease-out'
+    transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.32, 0.72, 0, 1)'
   };
 
   const handlers = {
