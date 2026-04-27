@@ -27,7 +27,7 @@ export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProp
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { fetchExpenses } = useExpenses();
+  const { expenses, setExpenses, fetchExpenses } = useExpenses();
   const { showNotification } = useNotification();
   const { data: session } = useSession();
   const { walletBalance, walletCurrency, refetchWallet } = useWallet();
@@ -84,6 +84,21 @@ export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProp
       return;
     }
 
+    const previousExpenses = [...expenses];
+    const optimisticExpense = {
+      _id: `temp-${Date.now()}`,
+      amount: finalAmount,
+      currency,
+      category: finalCategory,
+      description,
+      date,
+      bookId,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Optimistic add
+    setExpenses([optimisticExpense, ...expenses]);
+
     try {
       const response = await fetch("/api/expenses", {
         method: "POST",
@@ -109,14 +124,21 @@ export default function AddExpenseForm({ bookId, onSuccess }: AddExpenseFormProp
         // Refetch wallet balance after adding expense
         refetchWallet(session?.user);
         
+        // Re-fetch to get real ID and sync
+        fetchExpenses(); 
+
         if (onSuccess) onSuccess();
       } else {
+        // Rollback
+        setExpenses(previousExpenses);
         const data = await response.json();
         const errorMsg = data.error || "Failed to add expense";
         setError(errorMsg);
         showNotification(errorMsg, "error");
       }
     } catch (error) {
+      // Rollback
+      setExpenses(previousExpenses);
       setError("An error occurred. Please try again.");
       showNotification("An error occurred. Please try again.", "error");
     } finally {

@@ -6,7 +6,8 @@ import { createPortal } from "react-dom";
 import AddTicketModal from "./AddTicketModal";
 import { ActionMenuDrawer } from "../ExpenseDrawer";
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
-import useSWR from "swr";
+import useSWR, { useSWRConfig } from "swr";
+import { useWallet } from "@/context/WalletContext";
 
 interface RoomTicketsProps {
   room: any;
@@ -50,6 +51,8 @@ const fetcher = async (url: string) => {
 
 export default function RoomTickets({ room, currentUserId, refreshTrigger }: RoomTicketsProps) {
   const { data: tickets = [], error: swrError, isLoading: loading, mutate: fetchTickets } = useSWR<any[]>(`/api/rooms/${room._id}/tickets`, fetcher);
+  const { mutate } = useSWRConfig();
+  const { refetchWallet } = useWallet();
   const error = swrError?.message || "";
   
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -69,14 +72,38 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
 
   const handleDelete = async (ticketId: string) => {
     if (!confirm("Delete this ticket? All balance effects will be reversed.")) return;
+    
+    // Close menus immediately
+    if (detailTicket?._id === ticketId) setDetailTicket(null);
+    if (activeMenu === ticketId) setActiveMenu(null);
+
+    const optimisticTickets = tickets.filter((t: any) => t._id !== ticketId);
+
     try {
-      const res = await fetch(`/api/rooms/${room._id}/tickets/${ticketId}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) { alert(data.error || "Failed to delete"); return; }
-      fetchTickets();
-      if (detailTicket?._id === ticketId) setDetailTicket(null);
-    } catch {
-      alert("Something went wrong.");
+      await fetchTickets(
+        async () => {
+          const res = await fetch(`/api/rooms/${room._id}/tickets/${ticketId}`, { method: "DELETE" });
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || "Failed to delete");
+          }
+          // After deletion, revalidate stats and wallet in background
+          mutate(`/api/rooms/${room._id}/stats`);
+          refetchWallet();
+          
+          return optimisticTickets; // Success: return the filtered list
+        },
+        {
+          optimisticData: optimisticTickets,
+          rollbackOnError: true,
+          revalidate: true, // Re-sync with server
+          populateCache: true,
+        }
+      );
+    } catch (e: any) {
+      // SWR handles rollback automatically if rollbackOnError is true
+      console.error("Delete failed:", e);
+      alert(e.message || "Something went wrong.");
     }
   };
 
@@ -96,12 +123,15 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
   }
 
   const detailDrawer = detailTicket && (
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center sm:p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-md cursor-pointer" onClick={() => setDetailTicket(null)} />
+    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div 
+        className="absolute inset-0 bg-black/50 backdrop-blur-md cursor-pointer animate-in fade-in duration-300" 
+        onClick={() => setDetailTicket(null)} 
+      />
       <div 
         ref={detailSheetRef}
         style={detailStyle}
-        className="relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+        className="relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300 sm:duration-200"
       >
         
         <div 

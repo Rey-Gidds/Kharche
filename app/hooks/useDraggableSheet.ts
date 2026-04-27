@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, RefObject } from "react";
+import { useMediaQuery } from "./useMediaQuery";
 
 interface UseDraggableSheetProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ export function useDraggableSheet({ isOpen, onClose, threshold = 100 }: UseDragg
   const dragStartY = useRef(0);
   const currentDragY = useRef(0);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   useEffect(() => {
     if (isOpen) {
@@ -68,17 +70,17 @@ export function useDraggableSheet({ isOpen, onClose, threshold = 100 }: UseDragg
     }
   };
 
-  const style = {
+  const style = isMobile ? {
     transform: `translateY(${dragY}px)`,
     transition: isDragging ? 'none' : 'transform 0.2s cubic-bezier(0.32, 0.72, 0, 1)'
-  };
+  } : {};
 
-  const handlers = {
+  const handlers = isMobile ? {
     onPointerDown: handlePointerDown,
     onPointerMove: handlePointerMove,
     onPointerUp: handlePointerUp,
     onPointerCancel: handlePointerUp
-  };
+  } : {};
 
   return {
     sheetRef,

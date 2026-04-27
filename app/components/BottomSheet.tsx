@@ -32,7 +32,7 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col justify-end">
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in"
@@ -42,12 +42,12 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
       {/* Sheet Content */}
       <div 
         ref={sheetRef}
-        className="relative bg-[var(--surface)] w-full rounded-t-2xl border-t border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full duration-300 max-h-[90vh] flex flex-col"
+        className="relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 sm:fade-in duration-300 max-h-[95vh] sm:max-h-[85vh] flex flex-col"
         style={style}
       >
         {/* Handle bar area (drag target) */}
         <div 
-          className="w-full pt-3 pb-1 shrink-0 drag-handle-area cursor-grab active:cursor-grabbing touch-none"
+          className="w-full pt-3 pb-1 shrink-0 drag-handle-area cursor-grab active:cursor-grabbing touch-none sm:hidden"
           {...handlers}
         >
           <div className="w-12 h-1.5 bg-[var(--border)] rounded-full mx-auto pointer-events-none"></div>

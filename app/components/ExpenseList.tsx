@@ -22,7 +22,7 @@ interface ExpenseListProps {
 }
 
 export default function ExpenseList({ bookId, bookTitle, onBack, refreshTrigger }: ExpenseListProps) {
-  const { expenses, fetchExpenses, updateExpense, loading, error, setError } = useExpenses();
+  const { expenses, setExpenses, fetchExpenses, updateExpense, loading, error, setError } = useExpenses();
   const { refetchWallet, walletBalance, walletCurrency } = useWallet();
   const { data: session } = useSession();
   const [sortBy, setSortBy] = useState("createdAt");
@@ -35,7 +35,7 @@ export default function ExpenseList({ bookId, bookTitle, onBack, refreshTrigger 
   useEffect(() => {
     setMounted(true);
   }, []);
-
+ 
   const {
     activeMenu,
     setActiveMenu,
@@ -48,6 +48,7 @@ export default function ExpenseList({ bookId, bookTitle, onBack, refreshTrigger 
     openDrawer
   } = useExpenseDrawer(
     expenses,
+    setExpenses,
     fetchExpenses,
     updateExpense,
     refetchWallet,

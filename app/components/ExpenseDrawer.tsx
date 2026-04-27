@@ -51,15 +51,15 @@ export function ActionMenuDrawer({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center sm:p-4">
+    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer" 
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer animate-in fade-in duration-300" 
         onClick={onClose}
       />
       <div 
         ref={sheetRef}
         style={style}
-        className="relative w-full sm:max-w-sm flex flex-col items-center justify-end sm:justify-center animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+        className="relative w-full sm:max-w-sm flex flex-col items-center justify-end sm:justify-center animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300 sm:duration-200"
       >
         
         {/* Ticket Summary Card positioned above the drawer options */}
@@ -144,15 +144,15 @@ export default function ExpenseDrawer({
   if (!drawerData) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center sm:p-4">
+    <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div 
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer transition-opacity" 
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer transition-opacity animate-in fade-in duration-300" 
         onClick={() => setDrawerData(null)}
       />
       <div 
         ref={sheetRef}
         style={style}
-        className="relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+        className="relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300 sm:duration-200"
       >
         
         {/* Mobile Pull Handle */}

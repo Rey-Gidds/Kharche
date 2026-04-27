@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { fromSmallestUnit, toSmallestUnit, formatRoomCurrency } from "@/utils/roomCurrency";
 import { calculateSplit } from "@/lib/rooms/splitCalculator";
+import { useSWRConfig } from "swr";
+import { useWallet } from "@/context/WalletContext";
 
 type SplitType = "equal" | "manual" | "percentage" | "ratio";
 
@@ -30,6 +32,8 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
   const [splitData, setSplitData] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { mutate } = useSWRConfig();
+  const { refetchWallet } = useWallet();
 
   const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
 
@@ -150,6 +154,23 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
       );
     }
 
+    const ticketKey = `/api/rooms/${room._id}/tickets`;
+    const statsKey = `/api/rooms/${room._id}/stats`;
+
+    // Construct the ticket object for optimistic update
+    const optimisticTicket = {
+      _id: initialData?._id || `temp-${Date.now()}`,
+      title: title.trim(),
+      description: description.trim(),
+      totalAmount: toSmallestUnit(parseFloat(amount), currency),
+      splitType,
+      creatorId: members.find(m => m._id === payerId) || { _id: payerId, name: "You" },
+      involvedUsers: involvedUsers.map(id => members.find(m => m._id === id) || { _id: id }),
+      distribution: previewDistribution,
+      type: "expense",
+      createdAt: initialData?.createdAt || new Date().toISOString(),
+    };
+
     setLoading(true);
     try {
       const endpoint = initialData 
@@ -158,25 +179,53 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
       
       const method = initialData ? "PUT" : "POST";
 
-      const res = await fetch(endpoint, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          totalAmount: parseFloat(amount),
-          splitType,
-          creatorId: payerId,
-          involvedUsers,
-          splitData: payload,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Failed to save expense."); return; }
+      // Perform optimistic update
+      await mutate(
+        ticketKey,
+        async () => {
+          const res = await fetch(endpoint, {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: title.trim(),
+              description: description.trim() || undefined,
+              totalAmount: parseFloat(amount),
+              splitType,
+              creatorId: payerId,
+              involvedUsers,
+              splitData: payload,
+            }),
+          });
+          
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || "Failed to save expense.");
+          }
+
+          // Trigger background revalidation for related data
+          mutate(statsKey);
+          refetchWallet();
+
+          return fetch(ticketKey).then(r => r.json()); // Return fresh data from server
+        },
+        {
+          optimisticData: (currentTickets: any[] = []) => {
+            if (initialData) {
+              return currentTickets.map(t => t._id === initialData._id ? optimisticTicket : t);
+            } else {
+              return [optimisticTicket, ...currentTickets];
+            }
+          },
+          rollbackOnError: true,
+          revalidate: true,
+          populateCache: true,
+        }
+      );
+
       onSuccess();
       onClose();
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (e: any) {
+      setError(e.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -190,12 +239,15 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center sm:p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer" onClick={onClose} />
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm cursor-pointer transition-opacity animate-in fade-in duration-300" 
+        onClick={onClose} 
+      />
       <div 
         ref={sheetRef}
         style={style}
-        className="relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+        className="relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[85vh] transition-all animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 sm:fade-in duration-300 sm:duration-200"
       >
         <div 
           className="w-full pt-4 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"

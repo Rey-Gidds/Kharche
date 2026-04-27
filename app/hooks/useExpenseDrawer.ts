@@ -3,6 +3,7 @@ import { useState } from "react";
 
 export function useExpenseDrawer(
   expenses: any[],
+  setExpenses: (expenses: any[]) => void,
   fetchExpenses: (sortBy: string, sortOrder: string, categoryFilter: string, bookId?: string) => Promise<void>,
   updateExpense: (id: string, updates: any) => Promise<boolean>,
   refetchWallet: (user?: any, silent?: boolean) => Promise<void>,
@@ -18,25 +19,46 @@ export function useExpenseDrawer(
 
   const deleteExpense = async (id: string) => {
     if (!confirm("Are you sure you want to delete this expense?")) return;
+    
+    const previousExpenses = [...expenses];
+    // Optimistic remove
+    setExpenses(expenses.filter(e => e._id !== id));
+    if (drawerData?.id === id) setDrawerData(null);
+    setActiveMenu(null);
+
     try {
       const response = await fetch(`/api/expenses/${id}`, { method: "DELETE" });
       if (response.ok) {
-        await fetchExpenses(sortBy, sortOrder, categoryFilter, bookId);
         refetchWallet(session?.user);
-        if (drawerData?.id === id) setDrawerData(null);
+        // No need to fetchExpenses here, we already removed it.
+        // But we can re-sync just in case.
+        fetchExpenses(sortBy, sortOrder, categoryFilter, bookId);
+      } else {
+        // Rollback
+        setExpenses(previousExpenses);
+        console.error("Failed to delete expense");
       }
     } catch (error) {
+      setExpenses(previousExpenses);
       console.error("Failed to delete expense:", error);
     }
   };
 
   const handleUpdateSubmit = async () => {
     if (!drawerData?.id || !editForm) return;
+    
+    const previousExpenses = [...expenses];
+    // Optimistic update
+    setExpenses(expenses.map(e => e._id === drawerData.id ? { ...e, ...editForm } : e));
+    
     const success = await updateExpense(drawerData.id, editForm);
     if (success) {
       refetchWallet(session?.user);
       setActiveMenu(null);
       setDrawerData(null);
+    } else {
+      // Rollback
+      setExpenses(previousExpenses);
     }
   };
 

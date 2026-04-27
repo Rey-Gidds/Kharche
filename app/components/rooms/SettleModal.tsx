@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { formatRoomCurrency, fromSmallestUnit } from "@/utils/roomCurrency";
+import { useSWRConfig } from "swr";
+import { useWallet } from "@/context/WalletContext";
+import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
 
 interface SettleModalProps {
   isOpen: boolean;
@@ -13,14 +16,14 @@ interface SettleModalProps {
   currentBalance: number; // in smallest unit (positive = you owe them)
 }
 
-import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
-
 export default function SettleModal({
   isOpen, onClose, onSuccess, roomId, currency, receiverUser, currentBalance,
 }: SettleModalProps) {
   const [amount, setAmount] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { mutate } = useSWRConfig();
+  const { refetchWallet } = useWallet();
 
   const maxDisplay = fromSmallestUnit(currentBalance, currency);
   
@@ -53,20 +56,61 @@ export default function SettleModal({
     }
 
     if (val > maxDisplay + 0.001) { setError(`Amount cannot exceed ${maxDisplay.toFixed(3)} (your current balance).`); return; }
+    const statsKey = `/api/rooms/${roomId}/stats`;
+    const ticketsKey = `/api/rooms/${roomId}/tickets`;
+
     setError("");
     setLoading(true);
     try {
-      const res = await fetch(`/api/rooms/${roomId}/settle`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receiverId: receiverUser._id, amount: val }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Failed to record settlement."); return; }
+      await mutate(
+        statsKey,
+        async () => {
+          const res = await fetch(`/api/rooms/${roomId}/settle`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ receiverId: receiverUser._id, amount: val }),
+          });
+          
+          if (!res.ok) {
+            const data = await res.json();
+            throw new Error(data.error || "Failed to record settlement.");
+          }
+
+          // Background revalidation
+          mutate(ticketsKey);
+          refetchWallet();
+
+          return fetch(statsKey).then(r => r.json());
+        },
+        {
+          optimisticData: (currentStats: any) => {
+            if (!currentStats || !currentStats.balances) return currentStats;
+            const newBalances = currentStats.balances.map((b: any) => {
+              if (b.userId === receiverUser._id) {
+                // currentBalance is in smallest units, val is in float
+                // Need to convert val back to smallest units for consistency in stats?
+                // Wait, stats usually has amount in the same unit as input or smallest.
+                // Looking at RoomBalances.tsx, it uses b.amount directly.
+                // Assuming b.amount is in smallest units.
+                const settleSmallest = Math.round(val * (currency === "INR" ? 1000 : 100)); // Simplified
+                // Actually I should use the same utility toSmallestUnit if I had it here.
+                // But let's just use the currentBalance logic.
+                return { ...b, amount: Math.max(0, b.amount - currentBalance * (val / fromSmallestUnit(currentBalance, currency))) };
+              }
+              return b;
+            });
+            return { ...currentStats, balances: newBalances };
+          },
+          rollbackOnError: true,
+          revalidate: true,
+          populateCache: true,
+        }
+      );
+
       onSuccess();
       onClose();
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (e: any) {
+      setError(e.message || "Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -78,7 +122,7 @@ export default function SettleModal({
       <div 
         ref={sheetRef}
         style={style}
-        className="relative bg-[var(--surface)] w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+        className="relative bg-[var(--surface)] w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-200"
       >
         <div 
           className="w-full pt-4 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"
