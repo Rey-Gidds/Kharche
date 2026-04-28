@@ -1,7 +1,7 @@
 "use client";
 
 import { useSession } from "@/lib/auth-client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNotification } from "@/context/NotificationContext";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Wallet, Plus, Globe } from "lucide-react";
@@ -14,15 +14,13 @@ export default function WalletPage() {
     const { data: session, isPending, error: sessionError } = useSession();
     const [amount, setAmount] = useState("");
     const { showNotification } = useNotification();
-		const [isAdding, setIsAdding] = useState(false);
+	const [isAdding, setIsAdding] = useState(false);
     const router = useRouter();
 
     const { walletBalance, walletCurrency, refetchWallet, setWalletDefaultCurrency } = useWallet();
     const thresholdInWalletCurrency = convertCurrency(1000, "INR", walletCurrency);
 
-    const [isNavigatingHome, setIsNavigatingHome] = useState(false);
-
-    if (isPending || isNavigatingHome) {
+    if (isPending) {
         return <FullScreenLoader />;
     }
 
@@ -31,11 +29,12 @@ export default function WalletPage() {
         return null;
     }
 
-
     const handleAddMoney = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
+        setIsAdding(true);
         if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
             showNotification("Please enter a valid amount", "error");
+            setIsAdding(false);
             return;
         }
         try {
@@ -56,14 +55,16 @@ export default function WalletPage() {
         } catch (err) {
             showNotification("An error occurred", "error");
         }
+        finally {
+            setIsAdding(false);
+        }
     };
 
     return (
         <div className="min-h-screen md:min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] pb-10 md:pb-20">
             <header className="px-6 pt-6 md:pt-12 pb-6 md:pb-8 max-w-4xl mx-auto">
                 <Link 
-                    href="/" 
-                    onClick={() => setIsNavigatingHome(true)}
+                    href="/"
                     className="inline-flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors mb-6 group text-sm font-medium"
                 >
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -148,9 +149,6 @@ export default function WalletPage() {
                 <div className="mt-8">
                     <Link href="/me/account" className="flex items-center justify-between p-4 bg-[var(--surface)] rounded-xl border border-[var(--border)] hover:border-[var(--accent)] transition-all group shadow-sm">
                         <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-[var(--accent-dim)] flex items-center justify-center text-[var(--accent)]">
-                                <ArrowLeft className="w-4 h-4 rotate-180" />
-                            </div>
                             <div>
                                 <h3 className="font-bold text-sm">Account Settings</h3>
                                 <p className="text-[10px] text-[var(--muted)] uppercase tracking-wider">Manage your profile and security</p>

@@ -8,6 +8,7 @@ import { ActionMenuDrawer } from "../ExpenseDrawer";
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
 import useSWR, { useSWRConfig } from "swr";
 import { useWallet } from "@/context/WalletContext";
+import { useProcessing } from "@/context/ProcessingContext";
 
 interface RoomTicketsProps {
   room: any;
@@ -53,6 +54,7 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
   const { data: tickets = [], error: swrError, isLoading: loading, mutate: fetchTickets } = useSWR<any[]>(`/api/rooms/${room._id}/tickets`, fetcher);
   const { mutate } = useSWRConfig();
   const { refetchWallet } = useWallet();
+  const { processingIds, setProcessing, withProcessing } = useProcessing();
   const error = swrError?.message || "";
   
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -77,34 +79,22 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
     if (detailTicket?._id === ticketId) setDetailTicket(null);
     if (activeMenu === ticketId) setActiveMenu(null);
 
-    const optimisticTickets = tickets.filter((t: any) => t._id !== ticketId);
-
-    try {
-      await fetchTickets(
-        async () => {
-          const res = await fetch(`/api/rooms/${room._id}/tickets/${ticketId}`, { method: "DELETE" });
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || "Failed to delete");
-          }
-          // After deletion, revalidate stats and wallet in background
-          mutate(`/api/rooms/${room._id}/stats`);
-          refetchWallet();
-          
-          return optimisticTickets; // Success: return the filtered list
-        },
-        {
-          optimisticData: optimisticTickets,
-          rollbackOnError: true,
-          revalidate: true, // Re-sync with server
-          populateCache: true,
+    await withProcessing(ticketId, async () => {
+      try {
+        const res = await fetch(`/api/rooms/${room._id}/tickets/${ticketId}`, { method: "DELETE" });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to delete");
         }
-      );
-    } catch (e: any) {
-      // SWR handles rollback automatically if rollbackOnError is true
-      console.error("Delete failed:", e);
-      alert(e.message || "Something went wrong.");
-    }
+        // After deletion, revalidate stats and wallet in background
+        mutate(`/api/rooms/${room._id}/stats`);
+        refetchWallet();
+        fetchTickets(); // Refresh the list
+      } catch (e: any) {
+        console.error("Delete failed:", e);
+        alert(e.message || "Something went wrong.");
+      }
+    });
   };
 
   const formatDate = (d: string) =>
@@ -242,8 +232,11 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
               key={ticket._id}
               className={`flex items-start gap-4 p-4 rounded-xl hover:bg-[var(--surface)] border cursor-pointer transition-all ${
                 isSettlement ? "border-emerald-500/20 bg-emerald-500/5" : "border-transparent hover:border-[var(--border)]"
-              }`}
-              onClick={() => setDetailTicket(ticket)}
+              } ${processingIds[ticket._id] ? "processing-ticket" : ""}`}
+              onClick={() => {
+                if (processingIds[ticket._id]) return;
+                setDetailTicket(ticket);
+              }}
             >
               {/* Icon */}
               <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${

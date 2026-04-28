@@ -7,6 +7,7 @@ import { ActionMenuDrawer } from "./ExpenseDrawer";
 import useSWR from "swr";
 import { supportedCurrencies } from "@/utils/currencyConverter";
 import BottomSheet from "./BottomSheet";
+import { useProcessing } from "@/context/ProcessingContext";
 
 interface ExpenseBook {
   _id: string;
@@ -35,25 +36,30 @@ function EditBookModal({
   const [currency, setCurrency] = useState(book.currency!);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { withProcessing } = useProcessing();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) { setError("Title is required"); return; }
-    setLoading(true);
     setError("");
-    try {
-      const res = await fetch(`/api/expense-books/${book._id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: title.trim(), description: description.trim(), currency: currency.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Failed to update"); setLoading(false); return; }
-      onSuccess(data);
-    } catch {
-      setError("Something went wrong.");
-      setLoading(false);
-    }
+    
+    await withProcessing(book._id, async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/expense-books/${book._id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: title.trim(), description: description.trim(), currency: currency.trim() }),
+        });
+        const data = await res.json();
+        if (!res.ok) { setError(data.error || "Failed to update"); return; }
+        onSuccess(data);
+      } catch {
+        setError("Something went wrong.");
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   return (
@@ -126,6 +132,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
   const [mounted, setMounted] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [editBook, setEditBook] = useState<ExpenseBook | null>(null);
+  const { processingIds, setProcessing, withProcessing } = useProcessing();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -134,17 +141,20 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
 
   const handleDelete = async (bookId: string) => {
     if (!confirm("Delete this collection? All its tickets will also be removed.")) return;
-    try {
-      const res = await fetch(`/api/expense-books/${bookId}`, { method: "DELETE" });
-      if (res.ok) {
-        fetchBooks();
-      } else {
-        const data = await res.json();
-        alert(data.error || "Failed to delete");
+    setActiveMenu(null);
+    await withProcessing(bookId, async () => {
+      try {
+        const res = await fetch(`/api/expense-books/${bookId}`, { method: "DELETE" });
+        if (res.ok) {
+          fetchBooks();
+        } else {
+          const data = await res.json();
+          alert(data.error || "Failed to delete");
+        }
+      } catch {
+        alert("Something went wrong.");
       }
-    } catch {
-      alert("Something went wrong.");
-    }
+    });
   };
 
   const activeBook = books.find((b) => b._id === activeMenu);
@@ -177,9 +187,14 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
             description={book.description}
             currency={book.currency!}
             createdAt={book.createdAt}
-            onClick={() => onSelectBook(book._id, book.title, book.currency)}
+            isProcessing={!!processingIds[book._id]}
+            onClick={() => {
+              if (processingIds[book._id]) return;
+              onSelectBook(book._id, book.title, book.currency);
+            }}
             onOptionsClick={(e) => {
               e.stopPropagation();
+              if (processingIds[book._id]) return;
               setActiveMenu(book._id);
             }}
           />

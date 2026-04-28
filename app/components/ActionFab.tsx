@@ -48,6 +48,7 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook, isIns
   return createPortal(
     <>
       <div 
+        id="action-fab-container"
         className="fixed md:bottom-4 right-4 md:right-8 z-40 flex flex-col items-end gap-4" 
         style={{ bottom: "max(80px, calc(80px + env(safe-area-inset-bottom)))" }}
         ref={menuRef}

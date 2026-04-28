@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import RoomCard from "./RoomCard";
 import RoomView from "./RoomView";
 import CreateRoomModal from "./CreateRoomModal";
+import { useProcessing } from "@/context/ProcessingContext";
 
 interface RoomListProps {
   currentUserId: string;
@@ -23,7 +24,7 @@ export default function RoomList({ currentUserId }: RoomListProps) {
   const error = swrError?.message || "";
   
   const [selectedRoom, setSelectedRoom] = useState<any | null>(null);
-  const [isNavigating, setIsNavigating] = useState<string | null>(null);
+  const { setProcessing, isProcessing } = useProcessing();
   const [createOpen, setCreateOpen] = useState(false);
 
   const handleSelectRoom = async (room: any) => {
@@ -31,7 +32,8 @@ export default function RoomList({ currentUserId }: RoomListProps) {
     setSelectedRoom(room);
     
     // Background fetch to ensure we have the latest/full details without blocking the UI
-    setIsNavigating(room._id);
+    const navId = `nav-${room._id}`;
+    setProcessing(navId, true);
     try {
       const res = await fetch(`/api/rooms/${room._id}`);
       if (res.ok) {
@@ -41,7 +43,7 @@ export default function RoomList({ currentUserId }: RoomListProps) {
     } catch (err) {
       console.error("Failed to refresh room details", err);
     } finally {
-      setIsNavigating(null);
+      setProcessing(navId, false);
     }
   };
 
@@ -129,7 +131,7 @@ export default function RoomList({ currentUserId }: RoomListProps) {
               key={room._id}
               room={room}
               onClick={() => handleSelectRoom(room)}
-              loading={isNavigating === room._id}
+              loading={isProcessing(`nav-${room._id}`)}
             />
           ))}
         </div>

@@ -11,6 +11,7 @@ interface ExpenseTableRowProps {
   displayCurrency: string;
   convertedAmount: number;
   isSelected: boolean;
+  isProcessing?: boolean;
   activeMenu: string | null;
   setActiveMenu: (id: string | null) => void;
   openDrawer: (id: string, mode: "view" | "edit") => void;
@@ -24,6 +25,7 @@ export default function ExpenseTableRow({
   displayCurrency,
   convertedAmount,
   isSelected,
+  isProcessing,
   activeMenu,
   setActiveMenu,
   openDrawer,
@@ -34,6 +36,7 @@ export default function ExpenseTableRow({
   return (
     <div 
       onClick={() => {
+        if (isProcessing) return;
         if(activeMenu == null){
           openDrawer(expense._id, "view");
         }
@@ -41,7 +44,7 @@ export default function ExpenseTableRow({
           setActiveMenu(null);
         }
       }}
-      className={`relative flex flex-col md:grid md:grid-cols-[1fr_1fr_1fr_auto] md:gap-4 md:px-5 md:py-5 md:items-center ${isSelected ? 'bg-[var(--surface)]' : 'hover:bg-[var(--surface)]/50'} font-inter transition-colors duration-200 cursor-pointer border-b border-[var(--border)] md:border-none p-4`}
+      className={`relative flex flex-col md:grid md:grid-cols-[1fr_1fr_1fr_auto] md:gap-4 md:px-5 md:py-5 md:items-center ${isSelected ? 'bg-[var(--surface)]' : 'hover:bg-[var(--surface)]/50'} ${isProcessing ? 'processing-ticket' : ''} font-inter transition-all duration-200 cursor-pointer border-b border-[var(--border)] md:border-none p-4`}
     >
       {/* Mobile Card Layout (visible only <768px) */}
       <div className="flex flex-col gap-2 md:hidden">

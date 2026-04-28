@@ -5,6 +5,7 @@ import { fromSmallestUnit, toSmallestUnit, formatRoomCurrency } from "@/utils/ro
 import { calculateSplit } from "@/lib/rooms/splitCalculator";
 import { useSWRConfig } from "swr";
 import { useWallet } from "@/context/WalletContext";
+import { useProcessing } from "@/context/ProcessingContext";
 
 type SplitType = "equal" | "manual" | "percentage" | "ratio";
 
@@ -34,6 +35,7 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
   const [error, setError] = useState("");
   const { mutate } = useSWRConfig();
   const { refetchWallet } = useWallet();
+  const { withProcessing } = useProcessing();
 
   const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
 
@@ -171,63 +173,66 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
       createdAt: initialData?.createdAt || new Date().toISOString(),
     };
 
-    setLoading(true);
-    try {
-      const endpoint = initialData 
-        ? `/api/rooms/${room._id}/tickets/${initialData._id}` 
-        : `/api/rooms/${room._id}/tickets`;
-      
-      const method = initialData ? "PUT" : "POST";
+    const saveTask = async () => {
+      setLoading(true);
+      try {
+        const endpoint = initialData 
+          ? `/api/rooms/${room._id}/tickets/${initialData._id}` 
+          : `/api/rooms/${room._id}/tickets`;
+        
+        const method = initialData ? "PUT" : "POST";
 
-      // Perform optimistic update
-      await mutate(
-        ticketKey,
-        async () => {
-          const res = await fetch(endpoint, {
-            method,
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: title.trim(),
-              description: description.trim() || undefined,
-              totalAmount: parseFloat(amount),
-              splitType,
-              creatorId: payerId,
-              involvedUsers,
-              splitData: payload,
-            }),
-          });
-          
-          if (!res.ok) {
-            const data = await res.json();
-            throw new Error(data.error || "Failed to save expense.");
-          }
-
-          // Trigger background revalidation for related data
-          mutate(statsKey);
-          refetchWallet();
-
-          return fetch(ticketKey).then(r => r.json()); // Return fresh data from server
-        },
-        {
-          optimisticData: (currentTickets: any[] = []) => {
-            if (initialData) {
-              return currentTickets.map(t => t._id === initialData._id ? optimisticTicket : t);
-            } else {
-              return [optimisticTicket, ...currentTickets];
+        // Perform optimistic update
+        await mutate(
+          ticketKey,
+          async () => {
+            const res = await fetch(endpoint, {
+              method,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: title.trim(),
+                description: description.trim() || undefined,
+                totalAmount: parseFloat(amount),
+                splitType,
+                creatorId: payerId,
+                involvedUsers,
+                splitData: payload,
+              }),
+            });
+            
+            if (!res.ok) {
+              const data = await res.json();
+              throw new Error(data.error || "Failed to save expense.");
             }
-          },
-          rollbackOnError: true,
-          revalidate: true,
-          populateCache: true,
-        }
-      );
 
-      onSuccess();
-      onClose();
-    } catch (e: any) {
-      setError(e.message || "Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+            mutate(statsKey);
+            refetchWallet();
+
+            return fetch(ticketKey).then(r => r.json());
+          },
+          {
+            optimisticData: initialData ? undefined : (currentTickets: any[] = []) => {
+              return [optimisticTicket, ...currentTickets];
+            },
+            rollbackOnError: true,
+            revalidate: true,
+            populateCache: true,
+          }
+        );
+
+        onSuccess();
+        onClose();
+      } catch (e: any) {
+        setError(e.message || "Something went wrong. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (initialData) {
+      await withProcessing(initialData._id, saveTask);
+    } else {
+      await saveTask();
     }
   };
 

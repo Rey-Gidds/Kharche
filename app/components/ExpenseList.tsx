@@ -51,7 +51,8 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
     deleteExpense,
     handleUpdateSubmit,
     handleInlineChange,
-    openDrawer
+    openDrawer,
+    processingIds
   } = useExpenseDrawer(
     expenses,
     setExpenses,
@@ -256,6 +257,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
                   displayCurrency={displayCurrency}
                   convertedAmount={expenseAmount}
                   isSelected={isSelected}
+                  isProcessing={!!processingIds[expense._id]}
                   activeMenu={activeMenu}
                   setActiveMenu={setActiveMenu}
                   openDrawer={openDrawer}

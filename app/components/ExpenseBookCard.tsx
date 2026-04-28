@@ -5,11 +5,12 @@ interface ExpenseBookCardProps {
   description?: string;
   currency: string;
   createdAt: string;
+  isProcessing?: boolean;
   onClick: () => void;
   onOptionsClick: (e: React.MouseEvent) => void;
 }
 
-export default function ExpenseBookCard({ title, description, currency, createdAt, onClick, onOptionsClick }: ExpenseBookCardProps) {
+export default function ExpenseBookCard({ title, description, currency, createdAt, isProcessing, onClick, onOptionsClick }: ExpenseBookCardProps) {
   const formattedDate = new Date(createdAt).toLocaleDateString("en-US", {
     day: "2-digit",
     month: "short",
@@ -24,7 +25,7 @@ export default function ExpenseBookCard({ title, description, currency, createdA
   return (
     <div 
       onClick={onClick}
-      className="group relative bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 md:p-6 h-[160px] md:h-[220px] flex flex-col justify-between cursor-pointer hover:border-[var(--accent)] transition-all overflow-hidden"
+      className={`group relative bg-[var(--surface)] border border-[var(--border)] rounded-xl p-4 md:p-6 h-[160px] md:h-[220px] flex flex-col justify-between cursor-pointer hover:border-[var(--accent)] transition-all overflow-hidden ${isProcessing ? 'processing-ticket' : ''}`}
     >
       {/* 3-dots options button */}
       <button

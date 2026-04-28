@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatRoomCurrency } from "@/utils/roomCurrency";
+import { useProcessing } from "@/context/ProcessingContext";
 
 interface RoomMembersProps {
   room: any;
@@ -37,14 +38,15 @@ function Avatar({ user, size = 36 }: { user: any; size?: number }) {
 }
 
 export default function RoomMembers({ room, currentUserId, onLeave }: RoomMembersProps) {
-  const [leaving, setLeaving] = useState(false);
+  const { processingIds, setProcessing } = useProcessing();
+  const leaving = !!processingIds[`leave-${room._id}`];
   const [error, setError] = useState("");
   const [confirmed, setConfirmed] = useState(false);
 
   const handleLeave = async () => {
     if (!confirmed) { setConfirmed(true); return; }
     setError("");
-    setLeaving(true);
+    setProcessing(`leave-${room._id}`, true);
     try {
       const res = await fetch(`/api/rooms/${room._id}/leave`, { method: "DELETE" });
       const data = await res.json();
@@ -53,13 +55,13 @@ export default function RoomMembers({ room, currentUserId, onLeave }: RoomMember
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
-      setLeaving(false);
+      setProcessing(`leave-${room._id}`, false);
       setConfirmed(false);
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className={`space-y-6 ${leaving ? 'processing-ticket' : ''}`}>
       <div className="space-y-2">
         {room.users?.map((user: any) => {
           const isYou = user._id === currentUserId;
