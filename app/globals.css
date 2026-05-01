@@ -88,3 +88,85 @@ body.loading-active #action-fab-container {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+/* ─── Skeleton pulse animation ─── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.skeleton-box {
+  background-color: var(--border);
+  border-radius: 6px;
+  animation: skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+/* Stagger children of a skeleton container */
+.skeleton-stagger > *:nth-child(1) { animation-delay: 0s; }
+.skeleton-stagger > *:nth-child(2) { animation-delay: 0.1s; }
+.skeleton-stagger > *:nth-child(3) { animation-delay: 0.2s; }
+.skeleton-stagger > *:nth-child(4) { animation-delay: 0.3s; }
+.skeleton-stagger > *:nth-child(5) { animation-delay: 0.4s; }
+.skeleton-stagger > *:nth-child(6) { animation-delay: 0.5s; }
+
+/* ─── Shimmer (kept for legacy use) ─── */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg,
+    var(--border) 25%,
+    rgba(156, 163, 175, 0.12) 50%,
+    var(--border) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite linear;
+}
+
+/* ─── List item entrance ─── */
+@keyframes list-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.list-item-animate {
+  animation: list-item-in 0.25s ease-out both;
+}
+
+/* ─── Card entrance ─── */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.card-animate {
+  animation: card-in 0.3s ease-out both;
+}
+
+/* ─── Professional Ease ─── */
+.ease-professional {
+  animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1) !important;
+}
+
+@keyframes sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.animate-sheet-in {
+  animation: sheet-in 0.5s cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}

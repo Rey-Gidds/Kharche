@@ -113,6 +113,15 @@ export async function GET(req: Request) {
     const category = searchParams.get("category") || "All";
     const bookId = searchParams.get("bookId");
 
+    // Secure pagination — limit is capped server-side at 50 no matter what the client sends
+    const MAX_LIMIT = 50;
+    const DEFAULT_LIMIT = 20;
+    const rawLimit = parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);
+    const limit = Math.min(Math.max(1, isNaN(rawLimit) ? DEFAULT_LIMIT : rawLimit), MAX_LIMIT);
+    const rawPage = parseInt(searchParams.get("page") ?? "1", 10);
+    const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
+    const skip = (page - 1) * limit;
+
     try {
         await connectDB();
         
@@ -131,10 +140,14 @@ export async function GET(req: Request) {
             }
         }
 
+        const total = await Expense.countDocuments(query);
         const expenses = await Expense.find(query)
-            .sort({ [sortBy]: sortOrder as any });
+            .sort({ [sortBy]: sortOrder as any })
+            .skip(skip)
+            .limit(limit);
 
-        return NextResponse.json(expenses);
+        const hasMore = skip + expenses.length < total;
+        return NextResponse.json({ data: expenses, hasMore, page, total });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

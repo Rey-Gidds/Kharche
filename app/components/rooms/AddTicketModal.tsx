@@ -38,6 +38,15 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
   const { withProcessing } = useProcessing();
 
   const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
+  const [isEntering, setIsEntering] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsEntering(true);
+      const timer = setTimeout(() => setIsEntering(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   // Populate on open
   useEffect(() => {
@@ -252,7 +261,7 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
       <div 
         ref={sheetRef}
         style={style}
-        className="relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[85vh] transition-all animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 sm:fade-in duration-300 sm:duration-200"
+        className={`relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[85vh] transition-all ${isEntering ? 'animate-sheet-in' : ''} sm:animate-in sm:slide-in-from-bottom-0 sm:zoom-in-95 sm:fade-in`}
       >
         <div 
           className="w-full pt-4 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"

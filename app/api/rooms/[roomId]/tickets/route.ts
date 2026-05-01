@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 
 /** GET /api/rooms/[roomId]/tickets */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -20,6 +20,17 @@ export async function GET(
 
   try {
     const { roomId } = await params;
+    const { searchParams } = new URL(req.url);
+
+    // Secure pagination — limit capped server-side at 50
+    const MAX_LIMIT = 50;
+    const DEFAULT_LIMIT = 20;
+    const rawLimit = parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);
+    const limit = Math.min(Math.max(1, isNaN(rawLimit) ? DEFAULT_LIMIT : rawLimit), MAX_LIMIT);
+    const rawPage = parseInt(searchParams.get("page") ?? "1", 10);
+    const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
+    const skip = (page - 1) * limit;
+
     await connectDB();
 
     const room = await Room.findById(roomId).lean();
@@ -28,15 +39,19 @@ export async function GET(
     const isMember = room.users.some((u: any) => u.toString() === session.user.id);
     if (!isMember) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
+    const total = await RoomTicket.countDocuments({ roomId });
     const tickets = await RoomTicket.find({ roomId })
       .populate("creatorId", "name image")
       .populate("bearerId", "name image")
       .populate("distribution.userId", "name image")
       .populate("involvedUsers", "name image")
       .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
       .lean();
 
-    return NextResponse.json(tickets);
+    const hasMore = skip + tickets.length < total;
+    return NextResponse.json({ data: tickets, hasMore, page, total });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

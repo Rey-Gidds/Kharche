@@ -55,18 +55,18 @@ export default function AccountSheet({ session }: AccountSheetProps) {
                 initial
               )}
             </div>
-            <div className="text-center">
+            <div className="text-center animate-in slide-in-from-bottom-2 duration-500 delay-100">
               <p className="text-lg font-playfair font-bold text-[var(--foreground)]">{name}</p>
               <p className="text-xs text-[var(--muted)] mt-0.5">{email}</p>
             </div>
           </div>
 
           {/* Balance card */}
-          <div className="bg-[var(--background)] border border-[var(--border)] rounded-2xl p-4 flex items-center justify-between mb-6">
+          <div className="bg-[var(--background)] border border-[var(--border)] rounded-2xl p-4 flex items-center justify-between mb-6 animate-in slide-in-from-bottom-3 duration-500 delay-200 shadow-sm">
             <div>
               <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mb-1">Wallet Balance</p>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-playfair font-bold text-emerald-500">
+                <span className="text-2xl font-playfair font-bold text-emerald-500 animate-in zoom-in-95 duration-500">
                   {displayBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </span>
                 <span className="text-xs font-bold text-[var(--muted)]">{displayCurrency}</span>

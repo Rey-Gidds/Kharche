@@ -19,6 +19,15 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRo
   const [error, setError] = useState("");
   
   const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
+  const [isEntering, setIsEntering] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsEntering(true);
+      const timer = setTimeout(() => setIsEntering(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) { setName(""); setCurrency("INR"); setError(""); }
@@ -60,7 +69,7 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRo
       <div 
         ref={sheetRef}
         style={style}
-        className="relative bg-[var(--surface)] w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:fade-in duration-200"
+        className={`relative bg-[var(--surface)] w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden ${isEntering ? 'animate-sheet-in' : ''} sm:animate-in sm:slide-in-from-bottom-0 sm:fade-in`}
       >
         <div 
           className="w-full pt-4 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"

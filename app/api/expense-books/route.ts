@@ -51,12 +51,27 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(req.url);
+
+    // Secure pagination — limit capped server-side at 50
+    const MAX_LIMIT = 50;
+    const DEFAULT_LIMIT = 20;
+    const rawLimit = parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);
+    const limit = Math.min(Math.max(1, isNaN(rawLimit) ? DEFAULT_LIMIT : rawLimit), MAX_LIMIT);
+    const rawPage = parseInt(searchParams.get("page") ?? "1", 10);
+    const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
+    const skip = (page - 1) * limit;
+
     try {
         await connectDB();
-        let expenseBooks = await ExpenseBook.find({ userId: session.user.id })
-            .sort({ createdAt: -1 });
+        const total = await ExpenseBook.countDocuments({ userId: session.user.id });
+        const expenseBooks = await ExpenseBook.find({ userId: session.user.id })
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
 
-        return NextResponse.json(expenseBooks);
+        const hasMore = skip + expenseBooks.length < total;
+        return NextResponse.json({ data: expenseBooks, hasMore, page, total });
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }

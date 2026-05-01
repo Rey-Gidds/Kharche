@@ -98,7 +98,7 @@ export default function AccountPage() {
     };
 
     return (
-        <div className="min-h-screen md:min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] pb-10 md:pb-20">
+        <div className="min-h-screen md:min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] pb-10 md:pb-20 animate-in fade-in duration-700">
             <header className="px-6 pt-6 md:pt-12 pb-6 md:pb-8 max-w-4xl mx-auto">
                 <Link 
                     href="/" 
@@ -108,8 +108,8 @@ export default function AccountPage() {
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                     Home
                 </Link>
-                <h1 className="text-4xl font-serif font-bold text-[var(--foreground)]">My Account</h1>
-                <p className="text-[var(--muted)] mt-2">Manage your profile and personal details.</p>
+                <h1 className="text-4xl font-serif font-bold text-[var(--foreground)] animate-in slide-in-from-left duration-500">My Account</h1>
+                <p className="text-[var(--muted)] mt-2 animate-in slide-in-from-left duration-500 delay-100">Manage your profile and personal details.</p>
             </header>
 
             <main className="px-6 max-w-4xl mx-auto">
@@ -133,7 +133,7 @@ export default function AccountPage() {
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={uploading}
                                 type="button"
-                                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[var(--foreground)] text-[var(--background)] flex items-center justify-center shadow-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:scale-100"
+                                className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full bg-[var(--foreground)] text-[var(--background)] flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 cursor-pointer"
                             >
                                 <Camera className="w-4 h-4" />
                             </button>

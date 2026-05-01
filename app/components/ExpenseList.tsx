@@ -13,6 +13,7 @@ import ExpenseTableRow from "./ExpenseTableRow";
 import { useExpenseDrawer } from "@/app/hooks/useExpenseDrawer";
 import { useEstimatedBalance } from "@/app/hooks/useEstimatedBalance";
 import BottomSheet from "./BottomSheet";
+import { SkeletonExpenseRow, SkeletonExpenseRowMobile } from "./Skeletons";
 
 interface ExpenseListProps {
   bookId?: string;
@@ -23,7 +24,7 @@ interface ExpenseListProps {
 }
 
 export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, refreshTrigger }: ExpenseListProps) {
-  const { expenses, setExpenses, fetchExpenses, updateExpense, loading, error, setError } = useExpenses();
+  const { expenses, setExpenses, fetchExpenses, updateExpense, loading, loadingMore, hasMore, currentPage, error, setError } = useExpenses();
   const { refetchWallet, walletBalance, walletCurrency } = useWallet();
   const { data: session } = useSession();
   const [sortBy, setSortBy] = useState("createdAt");
@@ -67,7 +68,8 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
   );
 
   useEffect(() => {
-    fetchExpenses(sortBy, sortOrder, categoryFilter, bookId);
+    // Filter/sort changes: reset to page 1 (no append)
+    fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, 1, false);
   }, [sortBy, sortOrder, categoryFilter, bookId, fetchExpenses, refreshTrigger]);
 
   // --- All hooks must be declared before any early returns ---
@@ -85,8 +87,28 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
   // Early returns AFTER all hooks
   if (loading && expenses.length === 0) {
     return (
-      <div className="flex justify-center p-12">
-        <div className="animate-spin h-6 w-6 border-2 border-[var(--border)] border-t-[var(--accent)] rounded-full"></div>
+      <div className="max-w-4xl mx-auto space-y-4">
+        <div className="h-10 w-48 skeleton-box rounded-lg mb-6" />
+        <div className="border border-[var(--border)] rounded-xl overflow-hidden bg-[var(--background)]">
+            <div className="hidden md:grid grid-cols-[1fr_1fr_1fr_auto] gap-4 border-b border-[var(--border)] bg-[var(--surface)] py-4 px-6">
+                <div className="h-3 w-12 skeleton-box rounded opacity-50" />
+                <div className="h-3 w-12 skeleton-box rounded opacity-50" />
+                <div className="h-3 w-12 skeleton-box rounded opacity-50 ml-auto" />
+                <div className="h-3 w-12 skeleton-box rounded opacity-50 ml-auto" />
+            </div>
+            <div className="skeleton-stagger">
+              {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i}>
+                      <div className="hidden md:block">
+                          <SkeletonExpenseRow />
+                      </div>
+                      <div className="md:hidden">
+                          <SkeletonExpenseRowMobile />
+                      </div>
+                  </div>
+              ))}
+            </div>
+        </div>
       </div>
     );
   }
@@ -249,25 +271,51 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
                 expenseAmount = convertCurrency(expense.amount, expense.currency || "USD", displayCurrency);
               }
               return (
-                <ExpenseTableRow
-                  key={expense._id}
-                  expense={expense}
-                  index={index}
-                  totalExpenses={expenses.length}
-                  displayCurrency={displayCurrency}
-                  convertedAmount={expenseAmount}
-                  isSelected={isSelected}
-                  isProcessing={!!processingIds[expense._id]}
-                  activeMenu={activeMenu}
-                  setActiveMenu={setActiveMenu}
-                  openDrawer={openDrawer}
-                  deleteExpense={deleteExpense}
-                />
+                <div key={expense._id} className="list-item-animate" style={{ animationDelay: `${index * 0.04}s` }}>
+                  <ExpenseTableRow
+                    expense={expense}
+                    index={index}
+                    totalExpenses={expenses.length}
+                    displayCurrency={displayCurrency}
+                    convertedAmount={expenseAmount}
+                    isSelected={isSelected}
+                    isProcessing={!!processingIds[expense._id]}
+                    activeMenu={activeMenu}
+                    setActiveMenu={setActiveMenu}
+                    openDrawer={openDrawer}
+                    deleteExpense={deleteExpense}
+                  />
+                </div>
               );
             })
           )}
+          {loadingMore && (
+            <div className="skeleton-stagger">
+              <div className="hidden md:block">
+                <SkeletonExpenseRow />
+                <SkeletonExpenseRow />
+              </div>
+              <div className="md:hidden">
+                <SkeletonExpenseRowMobile />
+                <SkeletonExpenseRowMobile />
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Load More */}
+      {hasMore && !loadingMore && (
+        <div className="flex justify-center pt-1 pb-4">
+          <button
+            onClick={() => fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, currentPage + 1, true)}
+            className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
+          >
+            Load more
+          </button>
+        </div>
+      )}
+
       {mounted && drawerContent && createPortal(drawerContent, document.body)}
       {mounted && createPortal(
         <BottomSheet isOpen={isFilterSheetOpen} onClose={() => setIsFilterSheetOpen(false)} title="Filters">

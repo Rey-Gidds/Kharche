@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // Simple in-memory rate limiter for Edge Runtime
 const requestCounts = new Map<string, { count: number, resetTime: number }>();
 const WINDOW_MS = 60 * 1000; // 1 minute
-const MAX_REQUESTS = 60; // 60 requests per minute
+const MAX_REQUESTS = 150; // 150 requests per minute
 
 async function handleRateLimit(request: NextRequest) {
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';

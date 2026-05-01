@@ -6,9 +6,10 @@ import { createPortal } from "react-dom";
 import AddTicketModal from "./AddTicketModal";
 import { ActionMenuDrawer } from "../ExpenseDrawer";
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
-import useSWR, { useSWRConfig } from "swr";
+import { useSWRConfig } from "swr";
 import { useWallet } from "@/context/WalletContext";
 import { useProcessing } from "@/context/ProcessingContext";
+import { SkeletonRow } from "../Skeletons";
 
 interface RoomTicketsProps {
   room: any;
@@ -41,22 +42,20 @@ function SplitBadge({ splitType }: { splitType: string }) {
   );
 }
 
-
-
-const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to load tickets");
-  return data;
-};
+const PAGE_SIZE = 20;
 
 export default function RoomTickets({ room, currentUserId, refreshTrigger }: RoomTicketsProps) {
-  const { data: tickets = [], error: swrError, isLoading: loading, mutate: fetchTickets } = useSWR<any[]>(`/api/rooms/${room._id}/tickets`, fetcher);
+  const [tickets, setTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [error, setError] = useState("");
+
   const { mutate } = useSWRConfig();
   const { refetchWallet } = useWallet();
-  const { processingIds, setProcessing, withProcessing } = useProcessing();
-  const error = swrError?.message || "";
-  
+  const { processingIds, withProcessing } = useProcessing();
+
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [detailTicket, setDetailTicket] = useState<any | null>(null);
   const [editTicket, setEditTicket] = useState<any | null>(null);
@@ -64,18 +63,48 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
 
   const { sheetRef: detailSheetRef, style: detailStyle, handlers: detailHandlers } = useDraggableSheet({
     isOpen: !!detailTicket,
-    onClose: () => setDetailTicket(null)
+    onClose: () => setDetailTicket(null),
   });
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Re-fetch when refreshTrigger changes
-  useEffect(() => { fetchTickets(); }, [fetchTickets, refreshTrigger]);
+  const fetchTickets = useCallback(async (page: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+      setError("");
+    }
+    try {
+      const res = await fetch(`/api/rooms/${room._id}/tickets?page=${page}&limit=${PAGE_SIZE}`);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to load tickets");
+
+      const data: any[] = Array.isArray(result) ? result : (result.data ?? []);
+      const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
+      const returnedPage: number = Array.isArray(result) ? 1 : (result.page ?? 1);
+
+      if (append) {
+        setTickets((prev) => [...prev, ...data]);
+      } else {
+        setTickets(data);
+      }
+      setHasMore(more);
+      setCurrentPage(returnedPage);
+    } catch (e: any) {
+      setError(e.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [room._id]);
+
+  // Refresh trigger (new ticket added, room changed) → reset to page 1
+  useEffect(() => { fetchTickets(1, false); }, [fetchTickets, refreshTrigger]);
 
   const handleDelete = async (ticketId: string) => {
     if (!confirm("Delete this ticket? All balance effects will be reversed.")) return;
-    
-    // Close menus immediately
+
     if (detailTicket?._id === ticketId) setDetailTicket(null);
     if (activeMenu === ticketId) setActiveMenu(null);
 
@@ -86,10 +115,9 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
           const data = await res.json();
           throw new Error(data.error || "Failed to delete");
         }
-        // After deletion, revalidate stats and wallet in background
         mutate(`/api/rooms/${room._id}/stats`);
         refetchWallet();
-        fetchTickets(); // Refresh the list
+        fetchTickets(1, false); // Reset to page 1 after delete
       } catch (e: any) {
         console.error("Delete failed:", e);
         alert(e.message || "Something went wrong.");
@@ -102,8 +130,10 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
 
   if (loading && tickets.length === 0) {
     return (
-      <div className="flex justify-center py-16">
-        <div className="animate-spin h-6 w-6 border-2 border-[var(--border)] border-t-[var(--accent)] rounded-full" />
+      <div className="space-y-1 skeleton-stagger">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <SkeletonRow key={i} />
+        ))}
       </div>
     );
   }
@@ -114,17 +144,16 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
 
   const detailDrawer = detailTicket && (
     <div className="fixed inset-0 z-[10000] flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-md cursor-pointer animate-in fade-in duration-300" 
-        onClick={() => setDetailTicket(null)} 
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-md cursor-pointer animate-in fade-in duration-500"
+        onClick={() => setDetailTicket(null)}
       />
-      <div 
+      <div
         ref={detailSheetRef}
         style={detailStyle}
-        className="relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300 sm:duration-200"
+        className="relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] animate-sheet-in sm:animate-in sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95"
       >
-        
-        <div 
+        <div
           className="w-full -mt-2 mb-4 pt-2 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden shrink-0"
           {...detailHandlers}
         >
@@ -153,9 +182,7 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
               </p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">
-                {detailTicket.type === "settlement" ? "Paid by" : "Paid by"}
-              </p>
+              <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider mb-0.5">Paid by</p>
               <p className="text-sm font-bold text-[var(--foreground)]">
                 {detailTicket.creatorId?.name}
                 {detailTicket.creatorId?._id === currentUserId && " (you)"}
@@ -204,8 +231,6 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
               </p>
             </div>
           )}
-
-
         </div>
       </div>
     </div>
@@ -218,11 +243,10 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
           No expenses yet. Add one to get started.
         </div>
       ) : (
-        tickets.map((ticket: any, index: number) => {
+        tickets.map((ticket: any, i: number) => {
           const isSettlement = ticket.type === "settlement";
           const payer = ticket.creatorId;
           const isPayerYou = payer?._id === currentUserId || payer?._id?.toString() === currentUserId;
-          // Find your share
           const myEntry = ticket.distribution?.find(
             (d: any) => (d.userId?._id ?? d.userId)?.toString() === currentUserId
           );
@@ -230,9 +254,10 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
           return (
             <div
               key={ticket._id}
-              className={`flex items-start gap-4 p-4 rounded-xl hover:bg-[var(--surface)] border cursor-pointer transition-all ${
+              className={`list-item-animate flex items-start gap-4 p-4 rounded-xl hover:bg-[var(--surface)] border cursor-pointer transition-all ${
                 isSettlement ? "border-emerald-500/20 bg-emerald-500/5" : "border-transparent hover:border-[var(--border)]"
               } ${processingIds[ticket._id] ? "processing-ticket" : ""}`}
+              style={{ animationDelay: `${i * 0.04}s` }}
               onClick={() => {
                 if (processingIds[ticket._id]) return;
                 setDetailTicket(ticket);
@@ -302,6 +327,24 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
           );
         })
       )}
+      {loadingMore && (
+        <div className="skeleton-stagger">
+          <SkeletonRow />
+          <SkeletonRow />
+        </div>
+      )}
+
+      {/* Load More */}
+      {hasMore && !loadingMore && (
+        <div className="flex justify-center pt-3 pb-2">
+          <button
+            onClick={() => fetchTickets(currentPage + 1, true)}
+            className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
+          >
+            Load more
+          </button>
+        </div>
+      )}
 
       {mounted && detailDrawer && createPortal(detailDrawer, document.body)}
       {mounted && activeMenu && createPortal(
@@ -338,7 +381,7 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
         onClose={() => setEditTicket(null)}
         onSuccess={() => {
           setEditTicket(null);
-          fetchTickets();
+          fetchTickets(1, false);
         }}
         room={room}
         currentUserId={currentUserId}

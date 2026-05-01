@@ -97,7 +97,7 @@ export default function ActionFab({ onAddExpense, onAddBook, isInsideBook, isIns
         {/* Main button */}
         <button
           onClick={handleFabClick}
-          className={`w-14 h-14 flex items-center justify-center rounded-full shadow-xl transition-all duration-300 ${
+          className={`w-14 h-14 flex items-center justify-center rounded-2xl shadow-xl transition-all duration-300 ${
             (isOpen || isSheetOpen) && !isInsideBook && !isInsideRoom ? "bg-[var(--foreground)] text-[var(--background)] rotate-45" : "bg-[var(--accent)] text-[var(--background)]"
           }`}
           title={isInsideBook || isInsideRoom ? "Create Ticket" : "Actions"}

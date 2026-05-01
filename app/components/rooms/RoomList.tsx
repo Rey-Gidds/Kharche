@@ -5,6 +5,7 @@ import RoomCard from "./RoomCard";
 import RoomView from "./RoomView";
 import CreateRoomModal from "./CreateRoomModal";
 import { useProcessing } from "@/context/ProcessingContext";
+import { SkeletonRoomCard } from "../Skeletons";
 
 interface RoomListProps {
   currentUserId: string;
@@ -83,8 +84,8 @@ export default function RoomList({ currentUserId }: RoomListProps) {
 
       {/* Loading */}
       {loading && (
-        <div className="flex justify-center py-16">
-          <div className="animate-spin h-6 w-6 border-2 border-[var(--border)] border-t-[var(--accent)] rounded-full" />
+        <div className="grid grid-cols-1 gap-3 skeleton-stagger">
+          {[1, 2, 3].map((i) => <SkeletonRoomCard key={i} />)}
         </div>
       )}
 
@@ -126,13 +127,14 @@ export default function RoomList({ currentUserId }: RoomListProps) {
       {/* Room Cards */}
       {!loading && rooms.length > 0 && (
         <div className="grid grid-cols-1 gap-3">
-          {rooms.map((room) => (
-            <RoomCard
-              key={room._id}
-              room={room}
-              onClick={() => handleSelectRoom(room)}
-              loading={isProcessing(`nav-${room._id}`)}
-            />
+          {rooms.map((room, i) => (
+            <div key={room._id} className="card-animate" style={{ animationDelay: `${i * 0.06}s` }}>
+              <RoomCard
+                room={room}
+                onClick={() => handleSelectRoom(room)}
+                loading={isProcessing(`nav-${room._id}`)}
+              />
+            </div>
           ))}
         </div>
       )}

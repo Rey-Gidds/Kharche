@@ -61,7 +61,7 @@ export default function WalletPage() {
     };
 
     return (
-        <div className="min-h-screen md:min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] pb-10 md:pb-20">
+        <div className="min-h-screen md:min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] pb-10 md:pb-20 animate-in fade-in duration-700">
             <header className="px-6 pt-6 md:pt-12 pb-6 md:pb-8 max-w-4xl mx-auto">
                 <Link 
                     href="/"
@@ -70,8 +70,8 @@ export default function WalletPage() {
                     <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
                     Home
                 </Link>
-                <h1 className="text-4xl font-serif font-bold text-[var(--foreground)]">My Wallet</h1>
-                <p className="text-[var(--muted)] mt-2">Manage your funds and currency settings.</p>
+                <h1 className="text-4xl font-serif font-bold text-[var(--foreground)] animate-in slide-in-from-left duration-500">My Wallet</h1>
+                <p className="text-[var(--muted)] mt-2 animate-in slide-in-from-left duration-500 delay-100">Manage your funds and currency settings.</p>
             </header>
 
             <main className="px-6 max-w-4xl mx-auto">
@@ -91,7 +91,7 @@ export default function WalletPage() {
                             <span className="block text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1">Current Balance</span>
                             <div className="flex flex-col md:flex-row md:items-baseline justify-between gap-4 md:gap-2">
                                 <div className="flex items-baseline gap-2">
-                                    <span className="text-4xl font-serif font-bold">
+                                    <span key={walletBalance} className="text-4xl font-serif font-bold animate-in zoom-in-95 duration-300">
                                         {walletBalance?.toLocaleString(undefined, { maximumFractionDigits: 2 }) || "0"}
                                     </span>
                                     <span className="text-lg font-medium text-[var(--muted)]">{walletCurrency}</span>
@@ -136,9 +136,9 @@ export default function WalletPage() {
                                 </div>
                                 <button 
                                     type="submit"
-                                    className="w-full md:w-auto px-6 py-4 md:py-2 bg-[var(--foreground)] text-[var(--background)] rounded-xl md:rounded-lg font-bold text-xs uppercase tracking-widest hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center gap-2 shrink-0 shadow-sm"
+                                    className="w-full md:w-auto px-6 py-4 md:py-2 bg-[var(--foreground)] text-[var(--background)] rounded-xl md:rounded-lg font-bold text-xs uppercase tracking-widest hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shrink-0 shadow-sm"
                                 >
-                                    {isAdding ? "Adding...": <><Plus className="w-3 h-3" /> Add</>}
+                                    {isAdding ? <><div className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" /> Adding...</>: <><Plus className="w-3 h-3" /> Add Money</>}
                                 </button>
                             </div>
                         </div>

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import ExpenseBookCard from "./ExpenseBookCard";
 import { ActionMenuDrawer } from "./ExpenseDrawer";
-import useSWR from "swr";
 import { supportedCurrencies } from "@/utils/currencyConverter";
 import BottomSheet from "./BottomSheet";
 import { useProcessing } from "@/context/ProcessingContext";
+import { SkeletonCard } from "./Skeletons";
 
 interface ExpenseBook {
   _id: string;
@@ -119,16 +119,15 @@ function EditBookModal({
   );
 }
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to load books");
-  return data;
-};
+const PAGE_SIZE = 20;
 
 export default function ExpenseBookList({ onSelectBook, refreshTrigger }: ExpenseBookListProps) {
-  const { data: books = [], isLoading: loading, mutate: fetchBooks } = useSWR<ExpenseBook[]>("/api/expense-books", fetcher);
-  
+  const [books, setBooks] = useState<ExpenseBook[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+
   const [mounted, setMounted] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [editBook, setEditBook] = useState<ExpenseBook | null>(null);
@@ -136,8 +135,38 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Re-fetch when refreshTrigger changes
-  useEffect(() => { fetchBooks(); }, [fetchBooks, refreshTrigger]);
+  const fetchBooks = useCallback(async (page: number = 1, append: boolean = false) => {
+    if (append) {
+      setLoadingMore(true);
+    } else {
+      setLoading(true);
+    }
+    try {
+      const res = await fetch(`/api/expense-books?page=${page}&limit=${PAGE_SIZE}`);
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to load books");
+      // Handle both paginated and legacy response shapes
+      const data: ExpenseBook[] = Array.isArray(result) ? result : (result.data ?? []);
+      const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
+      const returnedPage: number = Array.isArray(result) ? 1 : (result.page ?? 1);
+
+      if (append) {
+        setBooks((prev) => [...prev, ...data]);
+      } else {
+        setBooks(data);
+      }
+      setHasMore(more);
+      setCurrentPage(returnedPage);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  // Initial load + refresh trigger → reset to page 1
+  useEffect(() => { fetchBooks(1, false); }, [fetchBooks, refreshTrigger]);
 
   const handleDelete = async (bookId: string) => {
     if (!confirm("Delete this collection? All its tickets will also be removed.")) return;
@@ -146,7 +175,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
       try {
         const res = await fetch(`/api/expense-books/${bookId}`, { method: "DELETE" });
         if (res.ok) {
-          fetchBooks();
+          fetchBooks(1, false);
         } else {
           const data = await res.json();
           alert(data.error || "Failed to delete");
@@ -159,11 +188,11 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
 
   const activeBook = books.find((b) => b._id === activeMenu);
 
-  if (loading) {
+  if (loading && books.length === 0) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 animate-pulse">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 skeleton-stagger">
         {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="bg-[var(--border)] h-[160px] md:h-[220px] rounded-xl opacity-50" />
+          <SkeletonCard key={i} />
         ))}
       </div>
     );
@@ -180,26 +209,49 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
   return (
     <>
       <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-        {books.map((book) => (
-          <ExpenseBookCard 
-            key={book._id}
-            title={book.title}
-            description={book.description}
-            currency={book.currency!}
-            createdAt={book.createdAt}
-            isProcessing={!!processingIds[book._id]}
-            onClick={() => {
-              if (processingIds[book._id]) return;
-              onSelectBook(book._id, book.title, book.currency);
-            }}
-            onOptionsClick={(e) => {
-              e.stopPropagation();
-              if (processingIds[book._id]) return;
-              setActiveMenu(book._id);
-            }}
-          />
+        {books.map((book, i) => (
+          <div key={book._id} className="card-animate" style={{ animationDelay: `${i * 0.05}s` }}>
+            <ExpenseBookCard 
+              title={book.title}
+              description={book.description}
+              currency={book.currency!}
+              createdAt={book.createdAt}
+              isProcessing={!!processingIds[book._id]}
+              onClick={() => {
+                if (processingIds[book._id]) return;
+                onSelectBook(book._id, book.title, book.currency);
+              }}
+              onOptionsClick={(e) => {
+                e.stopPropagation();
+                if (processingIds[book._id]) return;
+                setActiveMenu(book._id);
+              }}
+            />
+          </div>
         ))}
       </div>
+
+      {loadingMore && (
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 mt-3 md:mt-6 skeleton-stagger">
+          <SkeletonCard />
+          <SkeletonCard />
+          <div className="hidden lg:block">
+            <SkeletonCard />
+          </div>
+        </div>
+      )}
+
+      {/* Load More */}
+      {hasMore && !loadingMore && (
+        <div className="flex justify-center pt-4">
+          <button
+            onClick={() => fetchBooks(currentPage + 1, true)}
+            className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
+          >
+            Load more
+          </button>
+        </div>
+      )}
 
       {mounted && activeMenu && activeBook && createPortal(
         <ActionMenuDrawer
@@ -229,7 +281,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
           book={editBook}
           onClose={() => setEditBook(null)}
           onSuccess={(updated) => {
-            fetchBooks();
+            fetchBooks(1, false);
             setEditBook(null);
           }}
         />,

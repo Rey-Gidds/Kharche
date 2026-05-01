@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
 
 interface BottomSheetProps {
@@ -12,6 +12,7 @@ interface BottomSheetProps {
 
 export default function BottomSheet({ isOpen, onClose, title, children }: BottomSheetProps) {
   const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
+  const [isEntering, setIsEntering] = useState(true);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -29,20 +30,28 @@ export default function BottomSheet({ isOpen, onClose, title, children }: Bottom
     };
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (isOpen) {
+      setIsEntering(true);
+      const timer = setTimeout(() => setIsEntering(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[60] flex flex-col justify-end sm:justify-center sm:items-center sm:p-4">
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-500"
         onClick={onClose}
       />
       
       {/* Sheet Content */}
       <div 
         ref={sheetRef}
-        className="relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 sm:fade-in duration-300 max-h-[95vh] sm:max-h-[85vh] flex flex-col"
+        className={`relative bg-[var(--surface)] w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl border-t sm:border border-[var(--border)] shadow-2xl overflow-hidden ${isEntering ? 'animate-sheet-in' : ''} sm:animate-in sm:slide-in-from-bottom-0 sm:zoom-in-95 sm:fade-in max-h-[95vh] sm:max-h-[85vh] flex flex-col`}
         style={style}
       >
         {/* Handle bar area (drag target) */}

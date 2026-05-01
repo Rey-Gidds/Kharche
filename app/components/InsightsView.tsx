@@ -28,7 +28,8 @@ const fetcher = async (url: string) => {
 export default function InsightsView() {
   const now = new Date();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>("Monthly");
-  const { data: expenses = [], isLoading: loading } = useSWR<any[]>("/api/expenses?category=All&sort=desc&sortBy=date", fetcher);
+  const { data: result, isLoading: loading } = useSWR<any>("/api/expenses?category=All&sort=desc&sortBy=date&limit=50", fetcher);
+  const expenses = Array.isArray(result) ? result : (result?.data ?? []);
   const { walletCurrency } = useWallet();
   
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
@@ -37,8 +38,9 @@ export default function InsightsView() {
 
   const years = useMemo(() => {
     // Collect unique years from expenses and current year
-    const expenseYears = expenses.map(e => new Date(e.date).getFullYear());
+    const expenseYears = (expenses || []).map((e:any) => new Date(e.date).getFullYear());
     const startYear = Math.min(...expenseYears, now.getFullYear());
+
     const yearList = [];
     for (let y = startYear; y <= now.getFullYear(); y++) {
       yearList.push(y);
@@ -70,7 +72,7 @@ export default function InsightsView() {
 
   const handleExport = () => {
     // Filter expenses to match the current view
-    const filtered = expenses.filter(e => {
+    const filtered = expenses.filter((e:any) => {
         const d = new Date(e.date);
         if (timeFrame === "Monthly") return d.getFullYear() === selectedYear;
         return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
@@ -78,7 +80,7 @@ export default function InsightsView() {
 
     const csvRows = [
       ["Date", "Category", "Amount", "Currency", "Description"],
-      ...filtered.map(e => [
+      ...filtered.map((e:any) => [
         new Date(e.date).toLocaleDateString(),
         e.category,
         e.amount,

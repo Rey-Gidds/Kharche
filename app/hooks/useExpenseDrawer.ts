@@ -5,7 +5,7 @@ import { useProcessing } from "@/context/ProcessingContext";
 export function useExpenseDrawer(
   expenses: any[],
   setExpenses: (expenses: any[]) => void,
-  fetchExpenses: (sortBy: string, sortOrder: string, categoryFilter: string, bookId?: string) => Promise<void>,
+  fetchExpenses: (sortBy: string, sortOrder: string, categoryFilter: string, bookId?: string, page?: number, append?: boolean) => Promise<void>,
   updateExpense: (id: string, updates: any) => Promise<boolean>,
   refetchWallet: (user?: any, silent?: boolean) => Promise<void>,
   session: any,

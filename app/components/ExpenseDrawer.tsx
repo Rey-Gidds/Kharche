@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { formatCurrency } from "@/utils/formatCurrency";
 import { formatDate } from "@/utils/dateHelpers";
 import { supportedCurrencies } from "@/utils/currencyConverter";
@@ -47,6 +48,15 @@ export function ActionMenuDrawer({
   deleteLabel = "Delete"
 }: ActionMenuDrawerProps) {
   const { sheetRef, style, handlers } = useDraggableSheet({ isOpen, onClose });
+  const [isEntering, setIsEntering] = useState(true);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsEntering(true);
+      const timer = setTimeout(() => setIsEntering(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -59,7 +69,7 @@ export function ActionMenuDrawer({
       <div 
         ref={sheetRef}
         style={style}
-        className="relative w-full sm:max-w-sm flex flex-col items-center justify-end sm:justify-center animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300 sm:duration-200"
+        className={`relative w-full sm:max-w-sm flex flex-col items-center justify-end sm:justify-center ${isEntering ? 'animate-sheet-in' : ''} sm:animate-in sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95`}
       >
         
         {/* Ticket Summary Card positioned above the drawer options */}
@@ -140,6 +150,15 @@ export default function ExpenseDrawer({
     isOpen: !!drawerData, 
     onClose: () => setDrawerData(null) 
   });
+  const [isEntering, setIsEntering] = useState(true);
+
+  useEffect(() => {
+    if (drawerData) {
+      setIsEntering(true);
+      const timer = setTimeout(() => setIsEntering(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [drawerData]);
 
   if (!drawerData) return null;
 
@@ -152,7 +171,7 @@ export default function ExpenseDrawer({
       <div 
         ref={sheetRef}
         style={style}
-        className="relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] animate-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95 duration-300 sm:duration-200"
+        className={`relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] ${isEntering ? 'animate-sheet-in' : ''} sm:animate-in sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95`}
       >
         
         {/* Mobile Pull Handle */}

@@ -36,6 +36,7 @@ const WalletIcon = () => (
 );
 
 import FullScreenLoader from "./FullScreenLoader";
+import { SkeletonRoomCard } from "./Skeletons";
 
 export default function Dashboard() {
   const [viewMode, setViewMode] = useState<ViewMode>("books");
@@ -139,8 +140,8 @@ export default function Dashboard() {
           session ? (
             <RoomList currentUserId={session.user.id} />
           ) : (
-            <div className="flex justify-center py-16">
-              <div className="animate-spin h-6 w-6 border-2 border-[var(--border)] border-t-[var(--accent)] rounded-full" />
+            <div className="grid grid-cols-1 gap-3 skeleton-stagger">
+              {[1, 2, 3].map((i) => <SkeletonRoomCard key={i} />)}
             </div>
           )
         )}
