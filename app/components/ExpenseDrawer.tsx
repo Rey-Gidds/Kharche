@@ -4,6 +4,7 @@ import { formatDate } from "@/utils/dateHelpers";
 import { supportedCurrencies } from "@/utils/currencyConverter";
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
 import { useRouter } from "next/navigation";
+import SmartCategoryInput from "./SmartCategoryInput";
 
 interface ExpenseDrawerProps {
   drawerData: { id: string; mode: "view" | "edit" } | null;
@@ -90,7 +91,10 @@ export function ActionMenuDrawer({
         )}
 
         {/* Action Menu */}
-        <div className="w-full bg-[var(--surface)] shadow-2xl p-6 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shrink-0">
+        <div 
+          className="w-full bg-[var(--surface)] shadow-2xl p-6 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] shrink-0"
+          style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom, 0px))" }}
+        >
           <div 
             className="w-full -mt-2 mb-4 pt-2 pb-2 drag-handle-area touch-none cursor-grab active:cursor-grabbing sm:hidden"
             {...handlers}
@@ -170,7 +174,7 @@ export default function ExpenseDrawer({
       />
       <div 
         ref={sheetRef}
-        style={style}
+        style={{ ...style, paddingBottom: "max(3rem, env(safe-area-inset-bottom, 0px))" }}
         className={`relative w-full sm:max-w-lg bg-[var(--surface)] shadow-2xl p-6 sm:p-8 flex flex-col rounded-t-3xl sm:rounded-2xl border-t sm:border border-[var(--border)] overflow-y-auto max-h-[90vh] sm:max-h-[85vh] ${isEntering ? 'animate-sheet-in' : ''} sm:animate-in sm:slide-in-from-bottom-0 sm:fade-in sm:zoom-in-95`}
       >
         
@@ -250,11 +254,9 @@ export default function ExpenseDrawer({
             )}
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-[var(--muted)] uppercase">Category</label>
-              <input 
-                type="text"
-                value={editForm?.category}
-                onChange={(e) => handleInlineChange("category", e.target.value)}
-                className="w-full bg-transparent border-b border-[var(--border)] focus:border-[var(--accent)] outline-none py-2 text-[var(--foreground)]"
+              <SmartCategoryInput
+                value={editForm?.category || ""}
+                onChange={(val) => handleInlineChange("category", val)}
               />
             </div>
             <div className="space-y-1">
@@ -268,10 +270,11 @@ export default function ExpenseDrawer({
             </div>
             <div className="space-y-1">
               <label className="text-[11px] font-bold text-[var(--muted)] uppercase">Description</label>
-              <textarea 
+              <input
+                type="text" 
                 value={editForm?.description}
                 onChange={(e) => handleInlineChange("description", e.target.value)}
-                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 text-sm min-h-[100px] outline-none focus:border-[var(--accent)] text-[var(--foreground)]"
+                className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 text-sm outline-none focus:border-[var(--accent)] text-[var(--foreground)] resize-none"
               />
             </div>
             <div className="pt-4 flex gap-3">

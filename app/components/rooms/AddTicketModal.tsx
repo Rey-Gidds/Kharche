@@ -308,7 +308,7 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Add a note..."
                   maxLength={200}
-                  className="w-full py-2 bg-transparent border-b border-[var(--border)] focus:border-[var(--accent)] outline-none text-[var(--foreground)]"
+                  className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 text-sm outline-none focus:border-[var(--accent)] text-[var(--foreground)] resize-none"
                 />
               </div>
             </div>

@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import useSWR from "swr";
 import { convertCurrency, supportedCurrencies } from "@/utils/currencyConverter";
 import { useExpenses } from "@/context/ExpenseContext";
 import { createPortal } from "react-dom";
@@ -14,6 +15,19 @@ import { useExpenseDrawer } from "@/app/hooks/useExpenseDrawer";
 import { useEstimatedBalance } from "@/app/hooks/useEstimatedBalance";
 import BottomSheet from "./BottomSheet";
 import { SkeletonExpenseRow, SkeletonExpenseRowMobile } from "./Skeletons";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+// Human-readable label for active date filter badge
+function dateFilterLabel(type: string, value: string): string {
+  if (type === "date") return value;
+  if (type === "month") {
+    const [y, m] = value.split("-");
+    return `${new Date(Number(y), Number(m) - 1).toLocaleString("default", { month: "short" })} ${y}`;
+  }
+  if (type === "year") return value;
+  return "";
+}
 
 interface ExpenseListProps {
   bookId?: string;
@@ -33,7 +47,18 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
   const [displayCurrency, setDisplayCurrency] = useState(bookCurrency || walletCurrency);
   const [mounted, setMounted] = useState(false);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
-  
+
+  // --- Date filter state ---
+  const [dateFilterType, setDateFilterType] = useState<"all" | "date" | "month" | "year">("all");
+  const [dateFilterValue, setDateFilterValue] = useState("");
+
+  // Fetch all custom categories for the datalist (lightweight — only displayName needed)
+  const { data: allCategories } = useSWR<{ displayName: string; normalizedName: string }[]>(
+    "/api/categories?all=true",
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+
   useEffect(() => {
     setMounted(true);
     if (bookCurrency) {
@@ -64,13 +89,15 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
     sortBy,
     sortOrder,
     categoryFilter,
-    bookId
+    bookId,
+    dateFilterType,
+    dateFilterValue
   );
 
   useEffect(() => {
     // Filter/sort changes: reset to page 1 (no append)
-    fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, 1, false);
-  }, [sortBy, sortOrder, categoryFilter, bookId, fetchExpenses, refreshTrigger]);
+    fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, 1, false, dateFilterType, dateFilterValue);
+  }, [sortBy, sortOrder, categoryFilter, bookId, dateFilterType, dateFilterValue, fetchExpenses, refreshTrigger]);
 
   // --- All hooks must be declared before any early returns ---
   const originalExpense = drawerData ? expenses.find((e: any) => e._id === drawerData.id) : null;
@@ -82,7 +109,11 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
     walletCurrency
   );
 
-  const activeFiltersCount = (categoryFilter !== "All" ? 1 : 0) + (displayCurrency !== walletCurrency ? 1 : 0) + (sortBy !== "createdAt" ? 1 : 0);
+  const activeFiltersCount =
+    (categoryFilter !== "All" ? 1 : 0) +
+    (displayCurrency !== walletCurrency ? 1 : 0) +
+    (sortBy !== "createdAt" ? 1 : 0) +
+    (dateFilterType !== "all" ? 1 : 0);
 
   // Early returns AFTER all hooks
   if (loading && expenses.length === 0) {
@@ -125,7 +156,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
             label: "Try Again",
             onClick: () => {
               setError(null);
-              fetchExpenses(sortBy, sortOrder, categoryFilter, bookId);
+              fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, 1, false, dateFilterType, dateFilterValue);
             }
           }}
         />
@@ -148,9 +179,19 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
     />
   );
 
+  // Predefined categories always shown in filter selects / datalist
+  const PREDEFINED = ["Food", "Transport", "Rent", "Entertainment", "Utilities"];
+
+  // Custom categories not already in predefined list
+  const customCats = (allCategories ?? []).filter(
+    (c) => !PREDEFINED.map((p) => p.toLowerCase()).includes(c.normalizedName)
+  );
 
   return (
     <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
+
+
+
       <div className="flex flex-row items-center justify-between border-b border-[var(--border)] pb-4 gap-4">
         <div className="flex items-center gap-4">
           {onBack && (
@@ -191,21 +232,70 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
           
           <div className="h-4 w-px bg-[var(--border)]"></div>
           
+          {/* Category filter — dropdown select */}
           <div className="flex items-center gap-2">
-             <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Cat:</span>
-             <select
+            <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Cat:</span>
+            <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="text-sm font-bold text-[var(--foreground)] bg-transparent border-none outline-none cursor-pointer hover:underline"
-             >
-                <option value="All" className="bg-[var(--surface)]">All</option>
-                <option value="Food" className="bg-[var(--surface)]">Food</option>
-                <option value="Transport" className="bg-[var(--surface)]">Transport</option>
-                <option value="Rent" className="bg-[var(--surface)]">Rent</option>
-                <option value="Entertainment" className="bg-[var(--surface)]">Entertainment</option>
-                <option value="Utilities" className="bg-[var(--surface)]">Utilities</option>
-                <option value="others" className="bg-[var(--surface)]">Others</option>
-             </select>
+              className="text-sm font-bold text-[var(--foreground)] bg-transparent border-none outline-none cursor-pointer hover:underline w-28 min-w-0"
+            >
+              <option value="All" className="bg-[var(--surface)]">All</option>
+              {PREDEFINED.map((cat) => (
+                <option key={cat} value={cat} className="bg-[var(--surface)]">{cat}</option>
+              ))}
+              <option value="others" className="bg-[var(--surface)]">Others</option>
+              {customCats.map((c) => (
+                <option key={c.normalizedName} value={c.displayName} className="bg-[var(--surface)]">{c.displayName}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="h-4 w-px bg-[var(--border)]"></div>
+
+          {/* Date filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Date:</span>
+            <select
+              value={dateFilterType}
+              onChange={(e) => {
+                setDateFilterType(e.target.value as any);
+                setDateFilterValue("");
+              }}
+              className="text-sm text-[var(--foreground)] bg-transparent border-none outline-none cursor-pointer"
+            >
+              <option value="all" className="bg-[var(--surface)]">All Time</option>
+              <option value="date" className="bg-[var(--surface)]">Day</option>
+              <option value="month" className="bg-[var(--surface)]">Month</option>
+              <option value="year" className="bg-[var(--surface)]">Year</option>
+            </select>
+            {dateFilterType === "date" && (
+              <input
+                type="date"
+                value={dateFilterValue}
+                onChange={(e) => setDateFilterValue(e.target.value)}
+                className="text-xs text-[var(--foreground)] bg-transparent border-none outline-none cursor-pointer"
+              />
+            )}
+            {dateFilterType === "month" && (
+              <input
+                type="month"
+                value={dateFilterValue}
+                onChange={(e) => setDateFilterValue(e.target.value)}
+                className="text-xs text-[var(--foreground)] bg-transparent border-none outline-none cursor-pointer"
+              />
+            )}
+            {dateFilterType === "year" && (
+              <input
+                type="number"
+                value={dateFilterValue}
+                onChange={(e) => setDateFilterValue(e.target.value)}
+                placeholder={String(new Date().getFullYear())}
+                min="2000"
+                max="2100"
+                className="text-xs text-[var(--foreground)] bg-transparent border-none outline-none cursor-pointer w-16"
+              />
+            )}
           </div>
 
           <div className="h-4 w-px bg-[var(--border)]"></div>
@@ -308,7 +398,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
       {hasMore && !loadingMore && (
         <div className="flex justify-center pt-1 pb-4">
           <button
-            onClick={() => fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, currentPage + 1, true)}
+            onClick={() => fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, currentPage + 1, true, dateFilterType, dateFilterValue)}
             className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
           >
             Load more
@@ -342,21 +432,68 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
               </select>
             </div>
             
+            {/* Category — dropdown select */}
             <div className="space-y-2">
-               <label className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Category</label>
-               <select
+              <label className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Category</label>
+              <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
+                className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--foreground)] outline-none cursor-pointer"
+              >
+                <option value="All" className="bg-[var(--surface)]">All</option>
+                {PREDEFINED.map((cat) => (
+                  <option key={cat} value={cat} className="bg-[var(--surface)]">{cat}</option>
+                ))}
+                <option value="others" className="bg-[var(--surface)]">Others (Custom)</option>
+                {customCats.map((c) => (
+                  <option key={c.normalizedName} value={c.displayName} className="bg-[var(--surface)]">{c.displayName}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date filter */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider">Date Range</label>
+              <select
+                value={dateFilterType}
+                onChange={(e) => {
+                  setDateFilterType(e.target.value as any);
+                  setDateFilterValue("");
+                }}
                 className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--foreground)] outline-none"
-               >
-                  <option value="All">All</option>
-                  <option value="Food">Food</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Rent">Rent</option>
-                  <option value="Entertainment">Entertainment</option>
-                  <option value="Utilities">Utilities</option>
-                  <option value="others">Others</option>
-               </select>
+              >
+                <option value="all">All Time</option>
+                <option value="date">Specific Day</option>
+                <option value="month">Specific Month</option>
+                <option value="year">Specific Year</option>
+              </select>
+              {dateFilterType === "date" && (
+                <input
+                  type="date"
+                  value={dateFilterValue}
+                  onChange={(e) => setDateFilterValue(e.target.value)}
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--foreground)] outline-none"
+                />
+              )}
+              {dateFilterType === "month" && (
+                <input
+                  type="month"
+                  value={dateFilterValue}
+                  onChange={(e) => setDateFilterValue(e.target.value)}
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--foreground)] outline-none"
+                />
+              )}
+              {dateFilterType === "year" && (
+                <input
+                  type="number"
+                  value={dateFilterValue}
+                  onChange={(e) => setDateFilterValue(e.target.value)}
+                  placeholder={String(new Date().getFullYear())}
+                  min="2000"
+                  max="2100"
+                  className="w-full bg-[var(--surface)] border border-[var(--border)] rounded-xl px-4 py-3 text-sm font-bold text-[var(--foreground)] outline-none"
+                />
+              )}
             </div>
 
             <div className="space-y-2">
@@ -391,6 +528,8 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
                   setDisplayCurrency(walletCurrency);
                   setSortBy("createdAt");
                   setSortOrder("desc");
+                  setDateFilterType("all");
+                  setDateFilterValue("");
                 }}
                 className="flex-1 py-3 font-bold text-sm text-[var(--foreground)] hover:bg-[var(--border)] rounded-xl transition-colors"
               >

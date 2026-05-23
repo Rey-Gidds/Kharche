@@ -8,6 +8,7 @@ import { useSession } from "@/lib/auth-client";
 import { useWallet } from "@/context/WalletContext";
 import ErrorMessage from "./ErrorMessage";
 import { useRouter } from "next/navigation";
+import SmartCategoryInput from "./SmartCategoryInput";
 
 const CATEGORY_LIMIT = 20;
 const DESCRIPTION_LIMIT = 100;
@@ -129,10 +130,12 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
         // Refetch wallet balance after adding expense
         refetchWallet(session?.user);
         
-        // Re-fetch to get real ID and sync
-        fetchExpenses(); 
-
-        if (onSuccess) onSuccess();
+        // Re-fetch to get real ID and sync (avoid double fetching when onSuccess handles the parent state updates)
+        if (!onSuccess) {
+          fetchExpenses();
+        } else {
+          onSuccess();
+        }
       } else {
         // Rollback
         setExpenses(previousExpenses);
@@ -236,12 +239,10 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
           {category === "Other" && (
             <div className="space-y-1.5">
               <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Custom Category</label>
-              <input
-                type="text"
+              <SmartCategoryInput
                 value={customCategory}
-                onChange={(e) => setCustomCategory(e.target.value)}
+                onChange={setCustomCategory}
                 placeholder="e.g. Shopping"
-                className="w-full py-2 bg-transparent border-b border-[var(--border)] focus:border-[var(--accent)] outline-none text-[var(--foreground)]"
                 required
               />
             </div>
@@ -264,7 +265,7 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Details..."
-                    className="w-full py-2 bg-transparent border-b border-[var(--border)] focus:border-[var(--accent)] outline-none text-[var(--foreground)]"
+                    className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 text-sm outline-none focus:border-[var(--accent)] text-[var(--foreground)] resize-none"
                 />
               </div>
           </div>

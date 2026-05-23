@@ -7,6 +7,7 @@ import { convertCurrency } from "@/utils/currencyConverter";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { recordCategoryUsage } from "@/utils/normalizeCategory";
 
 export async function DELETE(
     req: Request,
@@ -141,6 +142,12 @@ export async function PUT(
 
             await mongoSession.commitTransaction();
             mongoSession.endSession();
+
+            // Record category usage atomically (non-blocking)
+            if (category) {
+                recordCategoryUsage(session.user.id, category);
+            }
+
             return NextResponse.json(updatedExpense);
         } catch (txnError) {
             await mongoSession.abortTransaction();

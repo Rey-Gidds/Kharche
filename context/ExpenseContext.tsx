@@ -5,7 +5,7 @@ import { createContext, useContext, useState, useCallback, ReactNode } from "rea
 interface ExpenseContextType {
   expenses: any[];
   setExpenses: (expenses: any[]) => void;
-  fetchExpenses: (sortBy?: string, sortOrder?: string, category?: string, bookId?: string, page?: number, append?: boolean) => Promise<void>;
+  fetchExpenses: (sortBy?: string, sortOrder?: string, category?: string, bookId?: string, page?: number, append?: boolean, dateFilterType?: string, dateFilterValue?: string) => Promise<void>;
   loading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
@@ -27,11 +27,13 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
 
   const fetchExpenses = useCallback(async (
     sortBy: string = "createdAt",
-    sortOrder: string = "asc",
+    sortOrder: string = "desc",
     category: string = "All",
     bookId: string = "",
     page: number = 1,
-    append: boolean = false
+    append: boolean = false,
+    dateFilterType: string = "all",
+    dateFilterValue: string = ""
   ) => {
     if (append) {
       setLoadingMore(true);
@@ -41,8 +43,11 @@ export function ExpenseProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      let url = `/api/expenses?sortBy=${sortBy}&sort=${sortOrder}&category=${category}&page=${page}&limit=20`;
+      let url = `/api/expenses?sortBy=${sortBy}&sort=${sortOrder}&category=${category}&page=${page}&limit=20&timezoneOffset=${new Date().getTimezoneOffset()}`;
       if (bookId) url += `&bookId=${bookId}`;
+      if (dateFilterType !== "all" && dateFilterValue) {
+        url += `&dateFilterType=${dateFilterType}&dateFilterValue=${dateFilterValue}`;
+      }
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`Failed to fetch expenses: ${response.statusText}`);

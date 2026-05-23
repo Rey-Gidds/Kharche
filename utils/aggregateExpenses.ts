@@ -28,7 +28,7 @@ function aggregateDaily(expenses: any[], selectedYear: number, selectedMonth: nu
     const expDate = new Date(exp.date);
     if (expDate.getFullYear() === selectedYear && expDate.getMonth() === selectedMonth) {
       const amountInWallet = convertCurrency(exp.amount, exp.currency, walletCurrency);
-      const cat = PREDEFINED_CATEGORIES.includes(exp.category) ? exp.category : "Others";
+      const cat = exp.category || "Others";
       const targetIndex = expDate.getDate() - 1;
       
       if (data[targetIndex]) {
@@ -79,7 +79,7 @@ function aggregateWeekly(expenses: any[], selectedYear: number, selectedMonth: n
     
     if (targetIndex !== -1) {
       const amountInWallet = convertCurrency(exp.amount, exp.currency, walletCurrency);
-      const cat = PREDEFINED_CATEGORIES.includes(exp.category) ? exp.category : "Others";
+      const cat = exp.category || "Others";
       
       data[targetIndex].total += amountInWallet;
       const bInd = data[targetIndex].breakdown.findIndex(b => b.category === cat);
@@ -107,7 +107,7 @@ function aggregateMonthly(expenses: any[], selectedYear: number, walletCurrency:
     if (expDate.getFullYear() === selectedYear) {
       const targetIndex = expDate.getMonth();
       const amountInWallet = convertCurrency(exp.amount, exp.currency, walletCurrency);
-      const cat = PREDEFINED_CATEGORIES.includes(exp.category) ? exp.category : "Others";
+      const cat = exp.category || "Others";
       
       if (data[targetIndex]) {
         data[targetIndex].total += amountInWallet;

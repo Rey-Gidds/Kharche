@@ -78,7 +78,18 @@ export function useDraggableSheet({ isOpen, onClose, threshold = 100 }: UseDragg
     if (currentDragY.current > threshold) {
       // Prevent synthetic clicks that might hit the backdrop after release
       if (e.cancelable) e.preventDefault();
-      
+
+      // Suppress the residual synthetic click that the pointer-up gesture
+      // produces after the sheet flies off — without this, the click lands on
+      // the table row beneath and immediately re-opens the drawer.
+      const suppressNextClick = (evt: MouseEvent) => {
+        evt.stopPropagation();
+        evt.preventDefault();
+      };
+      document.addEventListener("click", suppressNextClick, { capture: true, once: true });
+      // Safety valve: remove the listener even if no click fires within 300 ms
+      setTimeout(() => document.removeEventListener("click", suppressNextClick, true), 300);
+
       setIsClosing(true);
       // Animate out before closing
       const outDistance = typeof window !== 'undefined' ? window.innerHeight : 1000;

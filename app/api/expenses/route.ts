@@ -8,6 +8,7 @@ import { convertCurrency, THRESHOLD_INR } from "@/utils/currencyConverter";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
+import { recordCategoryUsage } from "@/utils/normalizeCategory";
 
 export async function POST(req: Request) {
     const session = await getCachedSession(await headers());
@@ -86,6 +87,10 @@ export async function POST(req: Request) {
 
             await mongoSession.commitTransaction();
             mongoSession.endSession();
+
+            // Record category usage atomically (non-blocking)
+            recordCategoryUsage(session.user.id, category);
+
             return NextResponse.json(expense, { status: 201 });
         } catch (txnError) {
             await mongoSession.abortTransaction();
@@ -109,6 +114,11 @@ export async function GET(req: Request) {
     const sortBy = searchParams.get("sortBy") || "createdAt";
     const category = searchParams.get("category") || "All";
     const bookId = searchParams.get("bookId");
+
+    const dateFilterType = searchParams.get("dateFilterType") || "all";
+    const dateFilterValue = searchParams.get("dateFilterValue") || "";
+    const tzOffsetParam = searchParams.get("timezoneOffset");
+    const timezoneOffset = tzOffsetParam !== null ? parseInt(tzOffsetParam, 10) : 0;
 
     // Secure pagination — limit is capped server-side at 50 no matter what the client sends
     const MAX_LIMIT = 50;
@@ -137,9 +147,45 @@ export async function GET(req: Request) {
             }
         }
 
+        // Advanced custom Date / Month / Year range filtering (timezone-aware)
+        if (dateFilterType !== "all" && dateFilterValue) {
+            const tzOffset = !isNaN(timezoneOffset) ? timezoneOffset : 0;
+            if (dateFilterType === "date") {
+                const [year, month, day] = dateFilterValue.split("-").map(Number);
+                const startLocalMs = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+                const endLocalMs = Date.UTC(year, month - 1, day, 23, 59, 59, 999);
+                const start = new Date(startLocalMs + tzOffset * 60 * 1000);
+                const end = new Date(endLocalMs + tzOffset * 60 * 1000);
+                query.date = { $gte: start, $lte: end };
+            } else if (dateFilterType === "month") {
+                const [year, month] = dateFilterValue.split("-").map(Number);
+                const startLocalMs = Date.UTC(year, month - 1, 1, 0, 0, 0, 0);
+                const endLocalMs = Date.UTC(year, month, 0, 23, 59, 59, 999);
+                const start = new Date(startLocalMs + tzOffset * 60 * 1000);
+                const end = new Date(endLocalMs + tzOffset * 60 * 1000);
+                query.date = { $gte: start, $lte: end };
+            } else if (dateFilterType === "year") {
+                const year = Number(dateFilterValue);
+                const startLocalMs = Date.UTC(year, 0, 1, 0, 0, 0, 0);
+                const endLocalMs = Date.UTC(year, 11, 31, 23, 59, 59, 999);
+                const start = new Date(startLocalMs + tzOffset * 60 * 1000);
+                const end = new Date(endLocalMs + tzOffset * 60 * 1000);
+                query.date = { $gte: start, $lte: end };
+            }
+        }
+
+        let sortQuery: any = {};
+        if (sortBy === "date") {
+            sortQuery = { date: sortOrder, createdAt: sortOrder };
+        } else if (sortBy === "amount") {
+            sortQuery = { amount: sortOrder, createdAt: sortOrder };
+        } else {
+            sortQuery = { [sortBy]: sortOrder, _id: sortOrder };
+        }
+
         const total = await Expense.countDocuments(query);
         const expenses = await Expense.find(query)
-            .sort({ [sortBy]: sortOrder as any })
+            .sort(sortQuery)
             .skip(skip)
             .limit(limit);
 

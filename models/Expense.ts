@@ -25,6 +25,11 @@ const ExpenseSchema = new Schema<IExpense>(
   { timestamps: true }
 );
 
+// Optimizing date sorting and filtering
+ExpenseSchema.index({ userId: 1, date: -1 });
+ExpenseSchema.index({ userId: 1, bookId: 1, date: -1 });
+ExpenseSchema.index({ userId: 1, category: 1, date: -1 });
+
 const Expense = models.Expense || model<IExpense>("Expense", ExpenseSchema);
 
 export default Expense;
