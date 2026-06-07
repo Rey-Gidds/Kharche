@@ -26,6 +26,7 @@ export interface UseEncryptionReturn {
   status: EncryptionStatus | null;
   isLoading: boolean;
   isUnlocked: boolean;
+  isEnabled: boolean;
   setupCompleted: boolean;
   needsBackfill: boolean;
   isAutoUnlocking: boolean;
@@ -46,6 +47,7 @@ export function useEncryption(): UseEncryptionReturn {
     { revalidateOnFocus: false },
   );
 
+  const isEnabled = status?.setupCompleted ?? false;
   const [unlockedKeys, setUnlockedKeys] = useState<UnlockedKeys | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -251,6 +253,7 @@ export function useEncryption(): UseEncryptionReturn {
   return {
     status: status ?? null,
     isLoading: !status && !statusError,
+    isEnabled,
     isUnlocked: unlockedKeys !== null,
     setupCompleted,
     needsBackfill,
