@@ -1,10 +1,10 @@
-import { auth } from "@/lib/auth";
 import { getCachedSession } from "@/lib/cachedSession";
 import { connectDB } from "@/lib/db";
 import Expense from "@/models/Expense";
 import ExpenseBook from "@/models/ExpenseBook";
 import User from "@/models/User";
-import { convertCurrency, fetchExchangeRates, MINIMUM_BALANCE_USD } from "@/utils/currencyConverter";
+import { MINIMUM_BALANCE_USD } from "@/utils/currencyConverter";
+import { getServerExchangeRates } from "@/lib/exchangeRateCache";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -18,8 +18,18 @@ export async function POST(req: Request) {
     }
 
     try {
-        // Ensure live exchange rates are loaded
-        await fetchExchangeRates();
+        // Load exchange rates from the server-side 24h cache.
+        // Using getServerExchangeRates() directly avoids a relative fetch()
+        // which would fail in Node.js (no base URL for relative paths).
+        const rates = await getServerExchangeRates();
+
+        // Inline converter using the fetched rates (avoids relying on the
+        // client-side module-level cachedRates in currencyConverter.ts).
+        const convert = (amount: number, from: string, to: string): number | null => {
+            if (from === to) return amount;
+            if (!rates[from] || !rates[to]) return null;
+            return (amount / rates[from]) * rates[to];
+        };
 
         const { amount, currency, category, description, date, bookId, encryptedDescription, encryptionVersion } = await req.json();
 
@@ -47,7 +57,7 @@ export async function POST(req: Request) {
             }
 
             const walletCurrency = user.currency || "INR";
-            const expenseAmountInWalletCurrency = convertCurrency(Number(amount), currency || "USD", walletCurrency);
+            const expenseAmountInWalletCurrency = convert(Number(amount), currency || "USD", walletCurrency);
             if (expenseAmountInWalletCurrency === null) {
                 await mongoSession.abortTransaction();
                 mongoSession.endSession();
@@ -56,7 +66,7 @@ export async function POST(req: Request) {
             const newBalance = user.walletBalance - expenseAmountInWalletCurrency;
 
             // Threshold logic — minimum $1 equivalent in wallet currency
-            const thresholdInWalletCurrency = convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency);
+            const thresholdInWalletCurrency = convert(MINIMUM_BALANCE_USD, "USD", walletCurrency);
             if (thresholdInWalletCurrency === null) {
                 await mongoSession.abortTransaction();
                 mongoSession.endSession();

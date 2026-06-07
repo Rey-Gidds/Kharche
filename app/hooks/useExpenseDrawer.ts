@@ -43,7 +43,7 @@ export function useExpenseDrawer(
           },
           {
             revalidate: true,
-            populateCache: true,
+            populateCache: false,
           }
         );
         refetchWallet();
@@ -96,7 +96,7 @@ export function useExpenseDrawer(
           },
           {
             revalidate: true,
-            populateCache: true,
+            populateCache: false,
           }
         );
         refetchWallet();

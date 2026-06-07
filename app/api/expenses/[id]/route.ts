@@ -1,9 +1,8 @@
-import { auth } from "@/lib/auth";
 import { getCachedSession } from "@/lib/cachedSession";
 import { connectDB } from "@/lib/db";
 import Expense from "@/models/Expense";
 import User from "@/models/User";
-import { convertCurrency, fetchExchangeRates } from "@/utils/currencyConverter";
+import { getServerExchangeRates } from "@/lib/exchangeRateCache";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -21,7 +20,12 @@ export async function DELETE(
 
     try {
         const { id } = await params;
-        await fetchExchangeRates();
+        const rates = await getServerExchangeRates();
+        const convert = (amount: number, from: string, to: string): number | null => {
+            if (from === to) return amount;
+            if (!rates[from] || !rates[to]) return null;
+            return (amount / rates[from]) * rates[to];
+        };
         await connectDB();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
@@ -44,7 +48,7 @@ export async function DELETE(
 
             // 2. Refund to wallet
             const walletCurrency = user.currency || "INR";
-            const refundAmountInWalletCurrency = convertCurrency(expense.amount, expense.currency, walletCurrency);
+            const refundAmountInWalletCurrency = convert(expense.amount, expense.currency, walletCurrency);
             if (refundAmountInWalletCurrency === null) {
                 await mongoSession.abortTransaction();
                 mongoSession.endSession();
@@ -82,7 +86,12 @@ export async function PUT(
     try {
         const { id } = await params;
         const { amount, currency, category, description, date, encryptedDescription, encryptionVersion } = await req.json();
-        await fetchExchangeRates();
+        const rates = await getServerExchangeRates();
+        const convert = (amount: number, from: string, to: string): number | null => {
+            if (from === to) return amount;
+            if (!rates[from] || !rates[to]) return null;
+            return (amount / rates[from]) * rates[to];
+        };
         await connectDB();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
@@ -107,7 +116,7 @@ export async function PUT(
 
             // 2. Calculate balance impact
             // Refund the old amount first (conceptually)
-            const oldAmountInWalletCurrency = convertCurrency(existingExpense.amount, existingExpense.currency, walletCurrency);
+            const oldAmountInWalletCurrency = convert(existingExpense.amount, existingExpense.currency, walletCurrency);
             if (oldAmountInWalletCurrency === null) {
                 await mongoSession.abortTransaction();
                 mongoSession.endSession();
@@ -117,7 +126,7 @@ export async function PUT(
             // New amount (if provided, else keep old)
             const newAmount = amount !== undefined ? Number(amount) : existingExpense.amount;
             const newCurrency = currency || existingExpense.currency;
-            const newAmountInWalletCurrency = convertCurrency(newAmount, newCurrency, walletCurrency);
+            const newAmountInWalletCurrency = convert(newAmount, newCurrency, walletCurrency);
             if (newAmountInWalletCurrency === null) {
                 await mongoSession.abortTransaction();
                 mongoSession.endSession();

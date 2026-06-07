@@ -1,12 +1,12 @@
-import { auth } from "@/lib/auth";
 import { getCachedSession } from "@/lib/cachedSession";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
-import { convertCurrency, fetchExchangeRates, supportedCurrencies } from "@/utils/currencyConverter";
+import { supportedCurrencies } from "@/utils/currencyConverter";
+import { getServerExchangeRates } from "@/lib/exchangeRateCache";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-
+    
 export async function POST(req: Request) {
     const session = await getCachedSession(await headers());
 
@@ -26,7 +26,12 @@ export async function POST(req: Request) {
         }
 
         await connectDB();
-        await fetchExchangeRates();
+        const rates = await getServerExchangeRates();
+        const convert = (amount: number, from: string, to: string): number | null => {
+            if (from === to) return amount;
+            if (!rates[from] || !rates[to]) return null;
+            return (amount / rates[from]) * rates[to];
+        };
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
 
@@ -42,7 +47,7 @@ export async function POST(req: Request) {
             if (oldCurrency !== currency) {
                 // Convert existing balance to new currency
                 const currentBalance = user.walletBalance || 0;
-                const newBalance = convertCurrency(currentBalance, oldCurrency, currency);
+                const newBalance = convert(currentBalance, oldCurrency, currency);
                 if (newBalance === null) {
                     await mongoSession.abortTransaction();
                     mongoSession.endSession();

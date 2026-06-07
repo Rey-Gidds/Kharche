@@ -14,6 +14,7 @@ let cachedRates: Record<string, number> | null = null;
  * Stores the result in the client-side module cache for synchronous access.
  */
 export async function fetchExchangeRates(): Promise<Record<string, number>> {
+  if (cachedRates) return cachedRates;
   const response = await fetch("/api/exchange-rates");
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
