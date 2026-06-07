@@ -35,7 +35,7 @@ export default function AddExpenseBookForm({ onSuccess }: AddExpenseBookFormProp
       const masterKey = getMasterKey();
       const { encryptedTitle, encryptedDescription, encryptionVersion } = await encryptExpenseBookPayload(
         { title: title.trim(), description: description.trim() },
-        masterKey,
+        masterKey!,
       );
 
       const body: Record<string, any> = {
