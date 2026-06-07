@@ -1,25 +1,27 @@
-// Exchange rate utility backed by Frankfurter API (https://www.frankfurter.dev)
-// Rates are cached in-memory for 5 minutes. No fallback — if the API is unreachable,
-// convertCurrency returns null and callers display an unavailable state.
+// Exchange rate utility — backed by the /api/exchange-rates server route.
+// The server caches rates for 24 hours and shares them across all users.
+// On the client we keep a lightweight in-memory copy so convertCurrency()
+// can be called synchronously once rates have been loaded.
+//
+// No fallback — if the API is unreachable, fetchExchangeRates() throws and
+// callers surface an error state.
 
 let cachedRates: Record<string, number> | null = null;
-let lastFetched = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Fetches latest exchange rates from Frankfurter API (relative to USD).
- * Caches them in-memory for CACHE_TTL. Throws on failure.
+ * Fetches exchange rates from our server-side cache endpoint.
+ * The server deduplicates upstream calls and caches for 24 hours.
+ * Stores the result in the client-side module cache for synchronous access.
  */
 export async function fetchExchangeRates(): Promise<Record<string, number>> {
-  if (cachedRates && Date.now() - lastFetched < CACHE_TTL) {
-    return cachedRates!;
+  const response = await fetch("/api/exchange-rates");
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body.error ?? `Exchange rate API returned ${response.status}`);
   }
-  const response = await fetch("https://api.frankfurter.dev/latest?from=USD&to=INR,CNY,EUR,GBP,JPY");
-  if (!response.ok) throw new Error(`Exchange rate API returned ${response.status}`);
   const data = await response.json();
-  cachedRates = { USD: 1, ...data.rates };
-  lastFetched = Date.now();
-  return cachedRates!;
+  cachedRates = data.rates as Record<string, number>;
+  return cachedRates;
 }
 
 /**

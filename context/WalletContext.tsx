@@ -33,15 +33,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const userId = session.data?.user?.id;
     const [ratesStatus, setRatesStatus] = useState<RatesStatus>("loading");
 
-    // Pre-fetch exchange rates for the supported currencies when the user is ready.
+    // Fetch exchange rates on mount — rates are shared/public data and do not
+    // depend on the user session. Fetching unconditionally means they are ready
+    // as soon as the page loads, not after authentication completes.
     useEffect(() => {
-        if (!userId) return;
         let cancelled = false;
         fetchExchangeRates()
             .then(() => { if (!cancelled) setRatesStatus("loaded"); })
             .catch(() => { if (!cancelled) setRatesStatus("error"); });
         return () => { cancelled = true; };
-    }, [userId]);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const { data, error, isLoading, mutate } = useSWR(
         userId ? "/api/user/wallet" : null,
