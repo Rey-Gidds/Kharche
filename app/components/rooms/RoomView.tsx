@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import RoomTickets from "./RoomTickets";
 import RoomBalances from "./RoomBalances";
 import RoomMembers from "./RoomMembers";
+import RoomPendingMembers from "./RoomPendingMembers";
 import AddTicketModal from "./AddTicketModal";
 import InviteLinkModal from "./InviteLinkModal";
 import ActionFab from "../ActionFab";
+import { fetchAndDecryptRoomKey } from "@/lib/rooms/roomKeyClient";
+import { useRoomSSE } from "@/hooks/useRoomSSE";
+import { useSWRConfig } from "swr";
 
 type RoomTab = "tickets" | "balances" | "members";
 
@@ -21,9 +25,28 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
   const [tab, setTab] = useState<RoomTab>("tickets");
   const [addTicketOpen, setAddTicketOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [roomKey, setRoomKey] = useState<CryptoKey | null>(null);
+  const { mutate } = useSWRConfig();
 
-  const refresh = useCallback(() => setRefreshTrigger((p) => p + 1), []);
+  // Acquire the room key on mount if room has encryption
+  // Uses fetchAndDecryptRoomKey which checks IndexedDB first, then falls back to server fetch
+  useEffect(() => {
+    if (room.activeKeyVersion > 0) {
+      fetchAndDecryptRoomKey(room._id).then(setRoomKey);
+    }
+  }, [room._id, room.activeKeyVersion]);
+
+  // Re-fetch room data when a member activates
+  useRoomSSE({
+    onEventType: {
+      MEMBERSHIP_ACTIVATED: (event) => {
+        if (event.roomId === room._id) {
+          mutate(`/api/rooms/${room._id}`);
+          mutate("/api/rooms");
+        }
+      },
+    },
+  });
 
   const tabs: { key: RoomTab; label: string; icon: React.ReactNode }[] = [
     {
@@ -102,6 +125,8 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
         </div>
       </div>
 
+      <RoomPendingMembers roomId={room._id} activeKeyVersion={room.activeKeyVersion} />
+
       {/* Tab Navigation — scrollable on mobile to prevent overflow */}
       <div className="flex items-center gap-0 border-b border-[var(--border)] overflow-x-auto no-scrollbar">
         {tabs.map((t) => (
@@ -129,7 +154,7 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
           <RoomTickets
             room={room}
             currentUserId={currentUserId}
-            refreshTrigger={refreshTrigger}
+            roomKey={roomKey}
           />
         </div>
         <div className={tab !== "balances" ? "hidden" : ""}>
@@ -150,11 +175,10 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
         onClose={() => setAddTicketOpen(false)}
         onSuccess={() => {
           setAddTicketOpen(false);
-          refresh();
-          // Switch to balances after adding so user sees impact
         }}
         room={room}
         currentUserId={currentUserId}
+        roomKey={roomKey}
       />
 
       <InviteLinkModal

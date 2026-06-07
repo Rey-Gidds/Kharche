@@ -1,0 +1,20 @@
+# Tasks: SWR Quick Updates & Remove encryptedAmount
+
+## Phase 1: Remove `encryptedAmount` from Expenses
+- [ ] Modify `models/Expense.ts` to remove `encryptedAmount` interface field and schema field.
+- [ ] Modify `crypto/services/payloadEncryption.service.ts` to remove `amount` from `ExpensePayload`, update `encryptExpensePayload`, and update `decryptExpensePayload`.
+- [ ] Modify `app/hooks/useExpenseDrawer.ts` to remove `encryptedAmount` references and only pass description to `encryptExpensePayload`.
+- [ ] Modify `app/components/AddExpenseForm.tsx` to remove `encryptedAmount` references and only pass description to `encryptExpensePayload`.
+- [ ] Modify `app/api/expenses/route.ts` to remove `encryptedAmount` from POST request extraction, validation, and storage.
+- [ ] Modify `app/api/expenses/[id]/route.ts` to remove `encryptedAmount` from PUT request extraction, validation, and storage.
+- [ ] Modify `context/ExpenseContext.tsx` to check for `encryptedDescription` instead of `encryptedAmount` to trigger decryption.
+
+## Phase 2: Fix SWR Updates Delay (Stale State)
+- [ ] Update `app/components/rooms/RoomTickets.tsx` to use a `useEffect` on `swrData` for decryption, bypassing the SWR-deduped `page1Decrypted` cache.
+- [ ] Update `app/components/rooms/RoomTickets.tsx`'s `handleDelete` to support array/tuple keys in global `mutate`.
+- [ ] Update `app/components/rooms/AddTicketModal.tsx`'s `mutate` call to support array/tuple keys.
+- [ ] Update `app/components/rooms/SettleModal.tsx`'s `mutate` call to support array/tuple keys.
+
+## Phase 3: Verification
+- [ ] Test ticket addition/editing/deletion updates.
+- [ ] Test expense creation and editing with encryption.

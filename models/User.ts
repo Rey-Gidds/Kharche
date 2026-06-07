@@ -8,6 +8,8 @@ export interface IUser extends Document {
   walletBalance: number;
   currency: string;
   rooms: mongoose.Types.ObjectId[];
+  needsBackfill: boolean;
+  encryptionVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -21,6 +23,8 @@ const UserSchema = new Schema<IUser>(
     walletBalance: { type: Number, default: 0 },
     currency: { type: String, default: "INR" },
     rooms: [{ type: Schema.Types.ObjectId, ref: "Room", default: [] }],
+    needsBackfill: { type: Boolean, default: false },
+    encryptionVersion: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

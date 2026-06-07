@@ -1,7 +1,8 @@
 // Orchestrates the display of the expenses table and associated drawer controls
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import useSWRInfinite from "swr/infinite";
 import useSWR from "swr";
 import { convertCurrency, supportedCurrencies } from "@/utils/currencyConverter";
 import { useExpenses } from "@/context/ExpenseContext";
@@ -13,10 +14,14 @@ import ExpenseDrawer from "./ExpenseDrawer";
 import ExpenseTableRow from "./ExpenseTableRow";
 import { useExpenseDrawer } from "@/app/hooks/useExpenseDrawer";
 import { useEstimatedBalance } from "@/app/hooks/useEstimatedBalance";
+import { useNotification } from "@/context/NotificationContext";
 import BottomSheet from "./BottomSheet";
 import { SkeletonExpenseRow, SkeletonExpenseRowMobile } from "./Skeletons";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const PAGE_SIZE = 20;
+const timezoneOffset = new Date().getTimezoneOffset();
+
+const jsonFetcher = (url: string) => fetch(url).then((r) => r.json());
 
 // Human-readable label for active date filter badge
 function dateFilterLabel(type: string, value: string): string {
@@ -34,13 +39,14 @@ interface ExpenseListProps {
   bookTitle?: string;
   bookCurrency?: string;
   onBack?: () => void;
-  refreshTrigger?: number;
 }
 
-export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, refreshTrigger }: ExpenseListProps) {
-  const { expenses, setExpenses, fetchExpenses, updateExpense, loading, loadingMore, hasMore, currentPage, error, setError } = useExpenses();
+export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }: ExpenseListProps) {
+  const { updateExpense, decryptExpenses } = useExpenses();
   const { refetchWallet, walletBalance, walletCurrency } = useWallet();
   const { data: session } = useSession();
+  const { showNotification } = useNotification();
+  const ratesNotifiedRef = useRef(false);
   const [sortBy, setSortBy] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -52,13 +58,6 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
   const [dateFilterType, setDateFilterType] = useState<"all" | "date" | "month" | "year">("all");
   const [dateFilterValue, setDateFilterValue] = useState("");
 
-  // Fetch all custom categories for the datalist (lightweight — only displayName needed)
-  const { data: allCategories } = useSWR<{ displayName: string; normalizedName: string }[]>(
-    "/api/categories?all=true",
-    fetcher,
-    { revalidateOnFocus: false }
-  );
-
   useEffect(() => {
     setMounted(true);
     if (bookCurrency) {
@@ -67,7 +66,72 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
       setDisplayCurrency(walletCurrency);
     }
   }, [walletCurrency, bookCurrency]);
- 
+
+  // Fetch all custom categories for the datalist (lightweight — only displayName needed)
+  const { data: allCategories } = useSWR<{ displayName: string; normalizedName: string }[]>(
+    "/api/categories?all=true",
+    jsonFetcher,
+    { revalidateOnFocus: false }
+  );
+
+  // Build SWR key for paginated expenses
+  const getKey = useCallback((pageIndex: number, previousPageData: any) => {
+    if (previousPageData && !previousPageData.hasMore) return null;
+    const page = pageIndex + 1;
+    const params = new URLSearchParams({
+      sortBy,
+      sort: sortOrder,
+      category: categoryFilter,
+      page: String(page),
+      limit: String(PAGE_SIZE),
+      timezoneOffset: String(timezoneOffset),
+    });
+    if (bookId) params.set("bookId", bookId);
+    if (dateFilterType !== "all" && dateFilterValue) {
+      params.set("dateFilterType", dateFilterType);
+      params.set("dateFilterValue", dateFilterValue);
+    }
+    return `/api/expenses?${params.toString()}`;
+  }, [sortBy, sortOrder, categoryFilter, bookId, dateFilterType, dateFilterValue]);
+
+  const fetcher = useCallback(async (url: string) => {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch expenses: ${res.statusText}`);
+    const result = await res.json();
+    const rawData: any[] = Array.isArray(result) ? result : (result.data ?? []);
+    const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
+    const returnedPage: number = Array.isArray(result) ? 1 : (result.page ?? 1);
+    const decrypted = await decryptExpenses(rawData);
+    return { data: decrypted, hasMore: more, page: returnedPage };
+  }, [decryptExpenses]);
+
+  const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
+    getKey,
+    fetcher,
+    { revalidateFirstPage: true }
+  );
+
+  // Flatten paginated data
+  const expenses = useMemo(() => data ? data.flatMap(page => page.data) : [], [data]);
+  const loading = isLoading && expenses.length === 0;
+  const loadingMore = isValidating && expenses.length > 0;
+  const hasMore = data ? data[data.length - 1]?.hasMore ?? false : false;
+
+  // Notify once when exchange rates are unavailable for display conversion
+  useEffect(() => {
+    const needsConversion = expenses.some(e => e.currency !== displayCurrency);
+    if (!needsConversion) return;
+    const failed = expenses.some(e =>
+      e.currency !== displayCurrency &&
+      convertCurrency(e.amount, e.currency || "USD", displayCurrency) === null
+    );
+    if (failed && !ratesNotifiedRef.current) {
+      showNotification("Exchange rates unavailable — some amounts shown in original currency.", "warning");
+      ratesNotifiedRef.current = true;
+    }
+    if (!failed) ratesNotifiedRef.current = false;
+  }, [displayCurrency, expenses, showNotification]);
+
   const {
     activeMenu,
     setActiveMenu,
@@ -81,27 +145,14 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
     processingIds
   } = useExpenseDrawer(
     expenses,
-    setExpenses,
-    fetchExpenses,
+    mutate,
     updateExpense,
     refetchWallet,
-    session,
-    sortBy,
-    sortOrder,
-    categoryFilter,
-    bookId,
-    dateFilterType,
-    dateFilterValue
   );
-
-  useEffect(() => {
-    // Filter/sort changes: reset to page 1 (no append)
-    fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, 1, false, dateFilterType, dateFilterValue);
-  }, [sortBy, sortOrder, categoryFilter, bookId, dateFilterType, dateFilterValue, fetchExpenses, refreshTrigger]);
 
   // --- All hooks must be declared before any early returns ---
   const originalExpense = drawerData ? expenses.find((e: any) => e._id === drawerData.id) : null;
-  const { estimatedBalance, isBelow, threshold } = useEstimatedBalance(
+  const { estimatedBalance, isBelow, threshold, ratesUnavailable } = useEstimatedBalance(
     originalExpense,
     editForm,
     drawerData?.mode,
@@ -149,15 +200,12 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
       <div className="max-w-4xl mx-auto px-4 md:px-0">
         <ErrorMessage 
           title="Data Retrieval Error"
-          message={error}
+          message={error.message || "An unexpected error occurred while fetching your data."}
           variant="error"
           fullHeight
           action={{
             label: "Try Again",
-            onClick: () => {
-              setError(null);
-              fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, 1, false, dateFilterType, dateFilterValue);
-            }
+            onClick: () => mutate(),
           }}
         />
       </div>
@@ -174,6 +222,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
       estimatedBalance={estimatedBalance}
       isBelow={isBelow}
       threshold={threshold}
+      ratesUnavailable={ratesUnavailable}
       walletCurrency={walletCurrency}
       originalExpense={originalExpense}
     />
@@ -189,8 +238,6 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
 
   return (
     <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
-
-
 
       <div className="flex flex-row items-center justify-between border-b border-[var(--border)] pb-4 gap-4">
         <div className="flex items-center gap-4">
@@ -357,8 +404,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
               const isSelected = drawerData?.id === expense._id;
               let expenseAmount = expense.amount;
               if (expense.currency !== displayCurrency) {
-                // convertCurrency uses USD as the base currency.
-                expenseAmount = convertCurrency(expense.amount, expense.currency || "USD", displayCurrency);
+                expenseAmount = convertCurrency(expense.amount, expense.currency || "USD", displayCurrency) ?? expense.amount;
               }
               return (
                 <div key={expense._id} className="list-item-animate" style={{ animationDelay: `${index * 0.04}s` }}>
@@ -370,6 +416,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
                     convertedAmount={expenseAmount}
                     isSelected={isSelected}
                     isProcessing={!!processingIds[expense._id]}
+                    isOptimistic={typeof expense._id === 'string' && expense._id.startsWith('temp-')}
                     activeMenu={activeMenu}
                     setActiveMenu={setActiveMenu}
                     openDrawer={openDrawer}
@@ -398,7 +445,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack, r
       {hasMore && !loadingMore && (
         <div className="flex justify-center pt-1 pb-4">
           <button
-            onClick={() => fetchExpenses(sortBy, sortOrder, categoryFilter, bookId, currentPage + 1, true, dateFilterType, dateFilterValue)}
+            onClick={() => setSize(size + 1)}
             className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
           >
             Load more

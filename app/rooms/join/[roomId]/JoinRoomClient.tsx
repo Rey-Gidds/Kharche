@@ -3,6 +3,15 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
+import { useRoomSSE } from "@/hooks/useRoomSSE";
+
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Room not found.");
+  return data;
+};
 
 function Avatar({ user, size = 36 }: { user: any; size?: number }) {
   const initials = (user?.name || "?")
@@ -32,48 +41,70 @@ interface JoinRoomClientProps {
 
 export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomClientProps) {
   const router = useRouter();
-  const [room, setRoom] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
-  const [error, setError] = useState("");
+  const [joinError, setJoinError] = useState("");
   const [joined, setJoined] = useState(false);
+  const [isPending, setIsPending] = useState(false);
 
+  useRoomSSE({
+    onEventType: {
+      ROOM_KEY_AVAILABLE: async (event) => {
+        if (event.roomId === roomId && isPending) {
+          try {
+            // Target user just received key. Now activate.
+            const res = await fetch(`/api/rooms/${roomId}/members/activate`, { method: "POST" });
+            if (!res.ok) {
+              const data = await res.json();
+              setJoinError(data.error || "Failed to activate membership.");
+              return;
+            }
+            setIsPending(false);
+            setJoined(true);
+            setTimeout(() => router.push("/"), 1500);
+          } catch (e) {
+            setJoinError("Failed to activate.");
+          }
+        }
+      },
+    },
+  });
+
+  const { data: room, error, isLoading } = useSWR(
+    `/api/rooms/invite/${roomId}`,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+
+  // Check if already a member once room data loads
   useEffect(() => {
-    const fetchRoom = async () => {
-      try {
-        const res = await fetch(`/api/rooms/invite/${roomId}`);
-        const data = await res.json();
-        if (!res.ok) { setError(data.error || "Room not found."); return; }
-        setRoom(data);
-        // Check if already a member
-        const alreadyMember = data.users?.some((u: any) => u._id === userId);
-        if (alreadyMember) setJoined(true);
-      } catch {
-        setError("Could not load room details.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRoom();
-  }, [roomId, userId]);
+    if (room) {
+      const alreadyMember = room.users?.some((u: any) => u._id === userId);
+      if (alreadyMember) setJoined(true);
+    }
+  }, [room, userId]);
 
   const handleJoin = async () => {
     setJoining(true);
-    setError("");
+    setJoinError("");
     try {
       const res = await fetch(`/api/rooms/join/${roomId}`, { method: "POST" });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || "Failed to join."); return; }
-      setJoined(true);
-      setTimeout(() => router.push("/"), 1500);
+      if (!res.ok) { setJoinError(data.error || "Failed to join."); return; }
+      
+      if (data.status === "KEY_EXCHANGE_PENDING") {
+        setIsPending(true);
+      } else {
+        setJoined(true);
+        setTimeout(() => router.push("/"), 1500);
+      }
     } catch {
-      setError("Something went wrong.");
+      setJoinError("Something went wrong.");
     } finally {
       setJoining(false);
     }
   };
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-2 border-[var(--border)] border-t-[var(--accent)] rounded-full" />
@@ -89,7 +120,7 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-red-500"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
           </div>
           <p className="font-playfair font-bold text-xl text-[var(--foreground)]">Room Not Found</p>
-          <p className="text-sm text-[var(--muted)]">{error}</p>
+          <p className="text-sm text-[var(--muted)]">{error.message}</p>
           <Link href="/" className="inline-block px-6 py-2.5 bg-[var(--accent)] text-[var(--background)] rounded-xl text-xs font-bold uppercase tracking-widest hover:opacity-90">
             Go Home
           </Link>
@@ -156,9 +187,9 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
               Joining as <strong className="text-[var(--foreground)]">{userName}</strong>
             </div>
 
-            {error && (
+            {(joinError || (error && room)) && (
               <div className="text-xs text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg p-3 font-medium">
-                {error}
+                {joinError || error?.message}
               </div>
             )}
 
@@ -170,6 +201,15 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
                 </div>
                 <p className="font-bold text-[var(--foreground)]">You've joined {room?.name}!</p>
                 <p className="text-xs text-[var(--muted)]">Redirecting to dashboard...</p>
+              </div>
+            ) : isPending ? (
+              <div className="space-y-4 text-center">
+                <div className="w-12 h-12 rounded-full border-2 border-[var(--border)] border-t-[var(--accent)] animate-spin flex items-center justify-center mx-auto">
+                </div>
+                <div>
+                  <p className="font-bold text-[var(--foreground)]">Waiting for approval</p>
+                  <p className="text-xs text-[var(--muted)] mt-1">The room creator needs to approve your request and share the encryption keys.</p>
+                </div>
               </div>
             ) : (
               <div className="space-y-3">

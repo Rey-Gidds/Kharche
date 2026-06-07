@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomBook from "@/models/RoomBook";
 import RoomTicket from "@/models/RoomTicket";
+import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { updateBalances } from "@/lib/rooms/balanceEngine";
 import { calculateSplit, validateSplitInput, SplitType } from "@/lib/rooms/splitCalculator";
 import { toSmallestUnit } from "@/utils/roomCurrency";
@@ -23,6 +24,13 @@ export async function GET(
     const { roomId } = await params;
     const { searchParams } = new URL(req.url);
 
+    // ACTIVE membership required
+    try {
+      await requireActiveMembership(roomId, session.user.id);
+    } catch {
+      return NextResponse.json({ error: "Active membership required" }, { status: 403 });
+    }
+
     // Secure pagination — limit capped server-side at 50
     const MAX_LIMIT = 50;
     const DEFAULT_LIMIT = 20;
@@ -33,12 +41,6 @@ export async function GET(
     const skip = (page - 1) * limit;
 
     await connectDB();
-
-    const room = await Room.findById(roomId).lean();
-    if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
-
-    const isMember = room.users.some((u: any) => u.toString() === session.user.id);
-    if (!isMember) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     const total = await RoomTicket.countDocuments({ roomId });
     const tickets = await RoomTicket.find({ roomId })
@@ -69,22 +71,32 @@ export async function POST(
   try {
     const { roomId } = await params;
     const body = await req.json();
-    const { title, description, totalAmount, splitType, creatorId, involvedUsers, splitData } = body;
+    const { totalAmount, splitType, creatorId, involvedUsers, splitData, encryptedTitle, encryptedDescription, title, description } = body;
 
-    // Basic validation
-    if (!title?.trim()) return NextResponse.json({ error: "Title is required" }, { status: 400 });
     if (!totalAmount || totalAmount <= 0) return NextResponse.json({ error: "Amount must be positive" }, { status: 400 });
     if (!splitType) return NextResponse.json({ error: "splitType is required" }, { status: 400 });
     if (!involvedUsers?.length) return NextResponse.json({ error: "At least one involved user is required" }, { status: 400 });
 
     await connectDB();
 
+    // ACTIVE membership required
+    try {
+      await requireActiveMembership(roomId, session.user.id);
+    } catch {
+      return NextResponse.json({ error: "Active membership required" }, { status: 403 });
+    }
+
     const room = await Room.findById(roomId).lean();
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
+    // When room has encryption, require encrypted title; otherwise accept plain text
+    if (room.activeKeyVersion > 0) {
+      if (!encryptedTitle) return NextResponse.json({ error: "Encrypted title is required" }, { status: 400 });
+    } else {
+      if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    }
+
     const roomUserIds = room.users.map((u: any) => u.toString());
-    const isMember = roomUserIds.includes(session.user.id);
-    if (!isMember) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
     // Validate payer is in room
     const payerId = creatorId || session.user.id;
@@ -103,10 +115,8 @@ export async function POST(
       return NextResponse.json({ error: "Duplicate users in involvedUsers" }, { status: 400 });
     }
 
-    // Convert totalAmount to smallest unit
     const totalSmallest = toSmallestUnit(Number(totalAmount), room.currency);
 
-    // Convert manual splitData amounts if present
     let convertedSplitData = splitData;
     if (splitType === "manual" && splitData) {
       convertedSplitData = Object.fromEntries(
@@ -114,7 +124,6 @@ export async function POST(
       );
     }
 
-    // Calculate distribution
     validateSplitInput(
       { splitType: splitType as SplitType, totalAmount: totalSmallest, involvedUsers, splitData: convertedSplitData },
       roomUserIds
@@ -126,8 +135,6 @@ export async function POST(
       splitData: convertedSplitData,
     });
 
-    // Ensure payer is always in the distribution (amount 0 if not previously selected)
-    // so they are visible as the ticket creator/payer in balances
     if (!distribution.some((d) => d.userId === payerId)) {
       distribution.push({ userId: payerId, amount: 0 });
       if (!involvedUsers.includes(payerId)) {
@@ -139,22 +146,22 @@ export async function POST(
     mongoSession.startTransaction();
 
     try {
-      // Create ticket
+      const ticketData: Record<string, any> = {
+        roomId,
+        bookId: room.bookId,
+        creatorId: payerId,
+        type: "expense",
+        totalAmount: totalSmallest,
+        splitType,
+        distribution: distribution.map((e) => ({ userId: e.userId, amount: e.amount })),
+        involvedUsers,
+        encryptedTitle: encryptedTitle || title || "",
+        encryptedDescription: encryptedDescription ?? (description ?? ""),
+        keyVersion: room.activeKeyVersion || 0,
+      };
+
       const [ticket] = await RoomTicket.create(
-        [
-          {
-            roomId,
-            bookId: room.bookId,
-            creatorId: payerId,
-            type: "expense",
-            title: title.trim(),
-            description: description?.trim(),
-            totalAmount: totalSmallest,
-            splitType,
-            distribution: distribution.map((e) => ({ userId: e.userId, amount: e.amount })),
-            involvedUsers,
-          },
-        ],
+        [ticketData],
         { session: mongoSession }
       );
 
@@ -167,7 +174,7 @@ export async function POST(
 
       // Update balances: for each user in distribution except the payer
       for (const entry of distribution) {
-        if (entry.userId === payerId) continue; // payer absorbs their own share
+        if (entry.userId === payerId) continue;
         await updateBalances(mongoSession, roomId, entry.userId, payerId, entry.amount);
       }
 

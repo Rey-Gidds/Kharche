@@ -7,6 +7,7 @@ import Dashboard from "@/app/components/Dashboard";
 import WalletBalanceDisplay from "@/app/components/WalletBalanceDisplay";
 import AccountSheet from "@/app/components/AccountSheet";
 import DownloadLink from "@/app/components/DownloadLink";
+import EncryptionOverlay from "@/app/components/encryption/EncryptionOverlay";
 import { Suspense } from "react";
 
 export default async function Home() {
@@ -25,7 +26,7 @@ export default async function Home() {
           <div className="flex items-center gap-3">
             <img src="/logo.png" alt="Kharche Logo" className="w-8 h-8 md:w-10 md:h-10 object-contain" />
             <div>
-              <h1 className="text-2xl md:text-3xl font-playfair font-bold text-[var(--foreground)] tracking-tight">
+              <h1 className="text-2xl md:text-3xl font-playfair font-bold text-[var(--foreground)] tracking-tight flex items-center gap-1.5">
                 Kharche
               </h1>
               <p className="hidden md:block text-[10px] font-bold text-[var(--muted)] uppercase tracking-[0.2em] mt-1">Your expense tracker.</p>
@@ -50,6 +51,10 @@ export default async function Home() {
              <AccountSheet session={session} />
           </div>
         </div>
+
+        <Suspense fallback={null}>
+          <EncryptionOverlay />
+        </Suspense>
         
         <Suspense fallback={<div className="animate-pulse h-64 bg-[var(--surface-light)] rounded-2xl"></div>}>
           <Dashboard />

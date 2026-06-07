@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomBook from "@/models/RoomBook";
 import RoomStats from "@/models/RoomStats";
+import RoomMembership from "@/models/RoomMembership";
 import User from "@/models/User";
 import { initBalancesForNewMember } from "@/lib/rooms/balanceEngine";
 import { SUPPORTED_ROOM_CURRENCIES } from "@/utils/roomCurrency";
@@ -11,7 +12,7 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-/** POST /api/rooms — Create a new room. Creator automatically joins. */
+/** POST /api/rooms — Create a new room. Creator automatically joins as ACTIVE. */
 export async function POST(req: Request) {
   const session = await getCachedSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -39,9 +40,9 @@ export async function POST(req: Request) {
     try {
       const creatorId = new mongoose.Types.ObjectId(session.user.id);
 
-      // 1. Create Room (bookId will be set after creating RoomBook)
+      // 1. Create Room (no encryption at server level)
       const [room] = await Room.create(
-        [{ name: name.trim(), users: [creatorId], currency }],
+        [{ name: name.trim(), users: [creatorId], currency, activeKeyVersion: 0 }],
         { session: mongoSession }
       );
 
@@ -55,10 +56,21 @@ export async function POST(req: Request) {
       room.bookId = book._id;
       await room.save({ session: mongoSession });
 
-      // 4. Create RoomStats for creator (no other members yet)
+      // 4. Create RoomStats for creator
       await initBalancesForNewMember(mongoSession, room._id.toString(), session.user.id, []);
 
-      // 5. Add room to creator's rooms array
+      // 5. Create ACTIVE membership for creator with no key yet
+      const [membership] = await RoomMembership.create(
+        [{
+          roomId: room._id,
+          userId: creatorId,
+          status: "ACTIVE",
+          currentKeyVersion: 0,
+        }],
+        { session: mongoSession }
+      );
+
+      // 6. Add room to creator's rooms array
       await User.updateOne(
         { _id: creatorId },
         { $addToSet: { rooms: room._id } },
@@ -68,7 +80,7 @@ export async function POST(req: Request) {
       await mongoSession.commitTransaction();
       mongoSession.endSession();
 
-      return NextResponse.json({ room, book }, { status: 201 });
+      return NextResponse.json({ room, book, membership, activeKeyVersion: 0 }, { status: 201 });
     } catch (txErr) {
       await mongoSession.abortTransaction();
       mongoSession.endSession();

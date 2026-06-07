@@ -46,7 +46,6 @@ export default function Dashboard() {
   const [selectedBookCurrency, setSelectedBookCurrency] = useState<string>("");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -112,13 +111,12 @@ export default function Dashboard() {
             <h2 className="hidden md:block text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">Workspaces</h2>
             <ExpenseBookList
               onSelectBook={handleSelectBook}
-              refreshTrigger={refreshTrigger}
             />
           </div>
         </div>
         
         <div className={viewMode === "all-tickets" ? "block animate-in fade-in duration-300" : "hidden"}>
-          <ExpenseList refreshTrigger={refreshTrigger} />
+          <ExpenseList />
         </div>
 
         <div className={viewMode === "insights" ? "block animate-in fade-in duration-300" : "hidden"}>
@@ -132,7 +130,6 @@ export default function Dashboard() {
             bookTitle={selectedBookTitle}
             bookCurrency={selectedBookCurrency}
             onBack={() => setViewMode("books")}
-            refreshTrigger={refreshTrigger}
           />
         )}
 
@@ -161,7 +158,6 @@ export default function Dashboard() {
             bookCurrency={selectedBookId ? selectedBookCurrency : undefined}
             onSuccess={() => {
               setIsExpenseModalOpen(false);
-              setRefreshTrigger((prev) => prev + 1);
             }}
           />
           </Modal>
@@ -175,7 +171,6 @@ export default function Dashboard() {
             <AddExpenseBookForm
               onSuccess={() => {
                 setIsBookModalOpen(false);
-                setRefreshTrigger((prev) => prev + 1);
               }}
             />
           </Modal>

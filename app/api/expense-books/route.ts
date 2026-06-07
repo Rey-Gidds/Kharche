@@ -13,10 +13,10 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { title, description, currency } = await req.json();
+        const { currency, encryptedTitle, encryptedDescription, encryptionVersion } = await req.json();
 
-        if (!title || title.trim() === "") {
-            return NextResponse.json({ error: "Title is required" }, { status: 400 });
+        if (!encryptedTitle) {
+            return NextResponse.json({ error: "Encrypted title is required" }, { status: 400 });
         }
 
         await connectDB();
@@ -30,9 +30,10 @@ export async function POST(req: Request) {
 
         const expenseBook = await ExpenseBook.create({
             userId: session.user.id,
-            title,
-            description,
             currency: finalCurrency,
+            encryptedTitle,
+            encryptedDescription: encryptedDescription ?? "",
+            encryptionVersion: encryptionVersion ?? 1,
         });
 
         return NextResponse.json(expenseBook, { status: 201 });

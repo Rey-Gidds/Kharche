@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { fromSmallestUnit, formatRoomCurrency } from "@/utils/roomCurrency";
 import { SUPPORTED_ROOM_CURRENCIES } from "@/utils/roomCurrency";
+import { useEncryption } from "@/hooks/useEncryption";
+import { useSession } from "@/lib/auth-client";
 
 interface CreateRoomModalProps {
   isOpen: boolean;
@@ -17,6 +19,9 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRo
   const [currency, setCurrency] = useState("INR");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  
+  const { publicKey } = useEncryption();
+  const { data: session } = useSession();
   
   const { sheetRef, style, handlers, isClosing } = useDraggableSheet({ isOpen, onClose });
   const [isEntering, setIsEntering] = useState(true);
@@ -54,6 +59,36 @@ export default function CreateRoomModal({ isOpen, onClose, onSuccess }: CreateRo
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Failed to create room"); return; }
+      
+      // Initialize encryption for the room if the creator has it setup
+      if (publicKey && session?.user?.id) {
+        try {
+          const { generateRoomKey, encryptRoomKeyForUser } = await import("@/crypto/services/roomKey.service");
+          const { importKeyFromJwk } = await import("@/crypto/utils/keySerializer");
+          const { setRoomKeyEncrypted } = await import("@/crypto/indexeddb/cacheManager");
+
+          const roomKey = await generateRoomKey();
+          const jwk = JSON.parse(publicKey);
+          const cryptoKey = await importKeyFromJwk(jwk, { name: "RSA-OAEP", hash: "SHA-256" }, ["encrypt"]);
+          const encryptedRoomKey = await encryptRoomKeyForUser(roomKey, cryptoKey);
+          
+          const keyPackages = [{ userId: session.user.id, encryptedRoomKey }];
+          const keysRes = await fetch(`/api/rooms/${data.room._id}/keys`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ keyVersion: 1, keyPackages }),
+          });
+
+          if (keysRes.ok) {
+            await setRoomKeyEncrypted(data.room._id, session.user.id, encryptedRoomKey, 1);
+          } else {
+            console.error("Failed to setup room encryption, version 1 not saved.");
+          }
+        } catch (err) {
+          console.error("Failed to setup room encryption locally", err);
+        }
+      }
+
       onSuccess(data.room);
       onClose();
     } catch {

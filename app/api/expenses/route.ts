@@ -4,7 +4,7 @@ import { connectDB } from "@/lib/db";
 import Expense from "@/models/Expense";
 import ExpenseBook from "@/models/ExpenseBook";
 import User from "@/models/User";
-import { convertCurrency, THRESHOLD_INR } from "@/utils/currencyConverter";
+import { convertCurrency, fetchExchangeRates, MINIMUM_BALANCE_USD } from "@/utils/currencyConverter";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -18,17 +18,20 @@ export async function POST(req: Request) {
     }
 
     try {
-        const { amount, currency, category, description, date, bookId } = await req.json();
+        // Ensure live exchange rates are loaded
+        await fetchExchangeRates();
+
+        const { amount, currency, category, description, date, bookId, encryptedDescription, encryptionVersion } = await req.json();
 
         // Server-side validation
         if (Number(amount) > 1000000) {
             return NextResponse.json({ error: "Amount cannot exceed 1,000,000" }, { status: 400 });
         }
-        if (category.length > 20) {
-            return NextResponse.json({ error: "Category name too long (max 20 characters)" }, { status: 400 });
+        if (!category || category.length > 20) {
+            return NextResponse.json({ error: "Category is required (max 20 characters)" }, { status: 400 });
         }
-        if (description && description.length > 100) {
-            return NextResponse.json({ error: "Description too long (max 100 characters)" }, { status: 400 });
+        if (!encryptedDescription) {
+            return NextResponse.json({ error: "Encrypted description is required" }, { status: 400 });
         }
 
         await connectDB();
@@ -45,10 +48,20 @@ export async function POST(req: Request) {
 
             const walletCurrency = user.currency || "INR";
             const expenseAmountInWalletCurrency = convertCurrency(Number(amount), currency || "USD", walletCurrency);
+            if (expenseAmountInWalletCurrency === null) {
+                await mongoSession.abortTransaction();
+                mongoSession.endSession();
+                return NextResponse.json({ error: "Currency conversion unavailable" }, { status: 503 });
+            }
             const newBalance = user.walletBalance - expenseAmountInWalletCurrency;
 
-            // Threshold logic
-            const thresholdInWalletCurrency = convertCurrency(THRESHOLD_INR, "INR", walletCurrency);
+            // Threshold logic — minimum $1 equivalent in wallet currency
+            const thresholdInWalletCurrency = convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency);
+            if (thresholdInWalletCurrency === null) {
+                await mongoSession.abortTransaction();
+                mongoSession.endSession();
+                return NextResponse.json({ error: "Currency conversion unavailable" }, { status: 503 });
+            }
 
             if (newBalance < thresholdInWalletCurrency) {
                 await mongoSession.abortTransaction();
@@ -58,15 +71,18 @@ export async function POST(req: Request) {
                 }, { status: 400 });
             }
 
-            const [expense] = await Expense.create([{
+            const expenseDoc: Record<string, any> = {
                 userId: session.user.id,
                 bookId: bookId || undefined,
                 amount: Number(amount),
                 currency: currency || "USD",
                 category,
-                description,
                 date: date ? new Date(date) : new Date(),
-            }], { session: mongoSession });
+            };
+            expenseDoc.encryptedDescription = encryptedDescription;
+            expenseDoc.encryptionVersion = encryptionVersion ?? 1;
+
+            const [expense] = await Expense.create([expenseDoc], { session: mongoSession });
 
             // Update User wallet balance
             user.walletBalance = newBalance;
@@ -120,7 +136,7 @@ export async function GET(req: Request) {
     const tzOffsetParam = searchParams.get("timezoneOffset");
     const timezoneOffset = tzOffsetParam !== null ? parseInt(tzOffsetParam, 10) : 0;
 
-    // Secure pagination — limit is capped server-side at 50 no matter what the client sends
+    // Secure pagination
     const MAX_LIMIT = 50;
     const DEFAULT_LIMIT = 20;
     const rawLimit = parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);

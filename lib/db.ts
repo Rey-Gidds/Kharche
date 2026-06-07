@@ -19,7 +19,7 @@ export async function connectDB() {
         return cached.conn;
     }
     if (!cached.promise) {
-        cached.promise = mongoose.connect(MONGODB_URI!);
+        cached.promise = mongoose.connect(MONGODB_URI!, { family: 4 }); // Force IPv4 to avoid SRV/IPv6 issues on Windows
     }
     cached.conn = await cached.promise;
     return cached.conn;

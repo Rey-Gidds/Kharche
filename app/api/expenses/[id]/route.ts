@@ -3,7 +3,7 @@ import { getCachedSession } from "@/lib/cachedSession";
 import { connectDB } from "@/lib/db";
 import Expense from "@/models/Expense";
 import User from "@/models/User";
-import { convertCurrency } from "@/utils/currencyConverter";
+import { convertCurrency, fetchExchangeRates } from "@/utils/currencyConverter";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -21,6 +21,7 @@ export async function DELETE(
 
     try {
         const { id } = await params;
+        await fetchExchangeRates();
         await connectDB();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
@@ -44,6 +45,11 @@ export async function DELETE(
             // 2. Refund to wallet
             const walletCurrency = user.currency || "INR";
             const refundAmountInWalletCurrency = convertCurrency(expense.amount, expense.currency, walletCurrency);
+            if (refundAmountInWalletCurrency === null) {
+                await mongoSession.abortTransaction();
+                mongoSession.endSession();
+                return NextResponse.json({ error: "Currency conversion unavailable" }, { status: 503 });
+            }
             user.walletBalance = (user.walletBalance || 0) + refundAmountInWalletCurrency;
             await user.save({ session: mongoSession });
 
@@ -75,7 +81,8 @@ export async function PUT(
 
     try {
         const { id } = await params;
-        const { amount, currency, category, description, date } = await req.json();
+        const { amount, currency, category, description, date, encryptedDescription, encryptionVersion } = await req.json();
+        await fetchExchangeRates();
         await connectDB();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
@@ -101,38 +108,47 @@ export async function PUT(
             // 2. Calculate balance impact
             // Refund the old amount first (conceptually)
             const oldAmountInWalletCurrency = convertCurrency(existingExpense.amount, existingExpense.currency, walletCurrency);
+            if (oldAmountInWalletCurrency === null) {
+                await mongoSession.abortTransaction();
+                mongoSession.endSession();
+                return NextResponse.json({ error: "Currency conversion unavailable" }, { status: 503 });
+            }
             
             // New amount (if provided, else keep old)
             const newAmount = amount !== undefined ? Number(amount) : existingExpense.amount;
             const newCurrency = currency || existingExpense.currency;
             const newAmountInWalletCurrency = convertCurrency(newAmount, newCurrency, walletCurrency);
+            if (newAmountInWalletCurrency === null) {
+                await mongoSession.abortTransaction();
+                mongoSession.endSession();
+                return NextResponse.json({ error: "Currency conversion unavailable" }, { status: 503 });
+            }
 
             const balanceWithoutOldExpense = (user.walletBalance || 0) + oldAmountInWalletCurrency;
             const finalBalance = balanceWithoutOldExpense - newAmountInWalletCurrency;
 
-            // 3. Threshold check (1000 INR)
-            const thresholdInWalletCurrency = convertCurrency(1000, "INR", walletCurrency);
-
-            if (finalBalance < thresholdInWalletCurrency) {
+            // 3. Ensure balance doesn't go negative after update
+            if (finalBalance < 0) {
                 await mongoSession.abortTransaction();
                 mongoSession.endSession();
                 return NextResponse.json({ 
-                    error: `Insufficient wallet balance for this update. Minimum threshold is ${thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${walletCurrency}.` 
+                    error: `Insufficient wallet balance. This update would leave you at ${finalBalance.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${walletCurrency}.` 
                 }, { status: 400 });
             }
 
-            // 4. Update Expense
+            // 4. Update Expense — build update object dynamically
+            const updateFields: Record<string, any> = {
+                amount: newAmount,
+                currency: newCurrency,
+                category: category || existingExpense.category,
+            };
+            if (date) updateFields.date = new Date(date);
+            updateFields.encryptedDescription = encryptedDescription;
+            updateFields.encryptionVersion = encryptionVersion ?? 1;
+
             const updatedExpense = await Expense.findOneAndUpdate(
                 { _id: id, userId: session.user.id },
-                { 
-                    $set: { 
-                        amount: newAmount, 
-                        currency: newCurrency, 
-                        category: category || existingExpense.category,
-                        description: description !== undefined ? description : existingExpense.description,
-                        date: date ? new Date(date) : existingExpense.date
-                    } 
-                },
+                { $set: updateFields },
                 { new: true, session: mongoSession }
             );
 

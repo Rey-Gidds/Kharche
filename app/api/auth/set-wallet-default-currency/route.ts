@@ -2,7 +2,7 @@ import { auth } from "@/lib/auth";
 import { getCachedSession } from "@/lib/cachedSession";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
-import { convertCurrency } from "@/utils/currencyConverter";
+import { convertCurrency, fetchExchangeRates, supportedCurrencies } from "@/utils/currencyConverter";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -21,12 +21,12 @@ export async function POST(req: Request) {
             return NextResponse.json({ error: "Currency is required" }, { status: 400 });
         }
 
-        const allowedCurrencies = ["USD", "INR", "CNY", "EUR", "GBP", "JPY"];
-        if (!allowedCurrencies.includes(currency)) {
+        if (!supportedCurrencies.includes(currency)) {
             return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
         }
 
         await connectDB();
+        await fetchExchangeRates();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
 
@@ -43,6 +43,11 @@ export async function POST(req: Request) {
                 // Convert existing balance to new currency
                 const currentBalance = user.walletBalance || 0;
                 const newBalance = convertCurrency(currentBalance, oldCurrency, currency);
+                if (newBalance === null) {
+                    await mongoSession.abortTransaction();
+                    mongoSession.endSession();
+                    return NextResponse.json({ error: "Currency conversion unavailable" }, { status: 503 });
+                }
                 user.walletBalance = newBalance;
                 user.currency = currency;
                 await user.save({ session: mongoSession });

@@ -8,6 +8,7 @@ import { ArrowLeft, User as UserIcon, Camera, Loader2, Edit2, Check, X } from "l
 import Link from "next/link";
 
 import FullScreenLoader from "@/app/components/FullScreenLoader";
+import EncryptionStatusCard from "./EncryptionStatusCard";
 
 export default function AccountPage() {
     const { data: session, isPending, error: sessionError } = useSession();
@@ -184,6 +185,16 @@ export default function AccountPage() {
                             <span className="block text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider mb-1">Member Since</span>
                             <span className="text-sm">{new Date(user.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
                         </div>
+                    </div>
+                </section>
+
+                {/* Encryption Section */}
+                <section className="mt-8 bg-[var(--surface)] p-8 rounded-2xl border border-[var(--border)] shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <h2 className="text-xl font-playfair font-bold text-[var(--foreground)] mb-1">Encryption</h2>
+                    <p className="text-[var(--muted)] text-sm mb-6">Protect your financial data with end-to-end encryption.</p>
+
+                    <div className="space-y-4">
+                        <EncryptionStatusCard />
                     </div>
                 </section>
                 

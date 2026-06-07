@@ -1,111 +1,65 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useCallback, ReactNode } from "react";
+import { decryptExpensePayload } from "@/crypto/services/payloadEncryption.service";
+import { getMasterKey } from "@/crypto/indexeddb/cacheManager";
 
 interface ExpenseContextType {
-  expenses: any[];
-  setExpenses: (expenses: any[]) => void;
-  fetchExpenses: (sortBy?: string, sortOrder?: string, category?: string, bookId?: string, page?: number, append?: boolean, dateFilterType?: string, dateFilterValue?: string) => Promise<void>;
-  loading: boolean;
-  loadingMore: boolean;
-  hasMore: boolean;
-  currentPage: number;
-  error: string | null;
-  setError: (error: string | null) => void;
-  updateExpense: (id: string, data: any) => Promise<boolean>;
+  updateExpense: (id: string, data: any) => Promise<any>;
+  decryptExpenses: (rawExpenses: any[]) => Promise<any[]>;
 }
 
 const ExpenseContext = createContext<ExpenseContextType | undefined>(undefined);
 
 export function ExpenseProvider({ children }: { children: ReactNode }) {
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [error, setError] = useState<string | null>(null);
-
-  const fetchExpenses = useCallback(async (
-    sortBy: string = "createdAt",
-    sortOrder: string = "desc",
-    category: string = "All",
-    bookId: string = "",
-    page: number = 1,
-    append: boolean = false,
-    dateFilterType: string = "all",
-    dateFilterValue: string = ""
-  ) => {
-    if (append) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
-      setError(null);
+  const decryptExpenses = useCallback(async (rawExpenses: any[]): Promise<any[]> => {
+    const mk = getMasterKey();
+    if (!mk) {
+      // No master key available — user is locked. Sanitize encrypted fields.
+      return rawExpenses.map((exp) => {
+        if (exp.encryptedDescription) {
+          return { ...exp, description: "[Encrypted]" };
+        }
+        return exp;
+      });
     }
-
-    try {
-      let url = `/api/expenses?sortBy=${sortBy}&sort=${sortOrder}&category=${category}&page=${page}&limit=20&timezoneOffset=${new Date().getTimezoneOffset()}`;
-      if (bookId) url += `&bookId=${bookId}`;
-      if (dateFilterType !== "all" && dateFilterValue) {
-        url += `&dateFilterType=${dateFilterType}&dateFilterValue=${dateFilterValue}`;
-      }
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch expenses: ${response.statusText}`);
-      }
-      const result = await response.json();
-      // Handle both old array format (backwards compat) and new paginated format
-      const data: any[] = Array.isArray(result) ? result : (result.data ?? []);
-      const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
-      const returnedPage: number = Array.isArray(result) ? 1 : (result.page ?? 1);
-
-      if (append) {
-        setExpenses((prev) => [...prev, ...data]);
-      } else {
-        setExpenses(data);
-      }
-      setHasMore(more);
-      setCurrentPage(returnedPage);
-    } catch (err: any) {
-      console.error("Failed to fetch expenses:", err);
-      setError(err.message || "An unexpected error occurred while fetching your data.");
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+    return Promise.all(
+      rawExpenses.map(async (exp) => {
+        if (!exp.encryptedDescription) return exp;
+        try {
+          const decrypted = await decryptExpensePayload(exp, mk);
+          return { ...exp, description: decrypted.description };
+        } catch {
+          return { ...exp, description: "[Encrypted]" };
+        }
+      }),
+    );
   }, []);
 
-  const updateExpense = async (id: string, updatedData: any) => {
-    try {
-      const response = await fetch(`/api/expenses/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData),
-      });
-      if (response.ok) {
-        setExpenses((prev) =>
-          prev.map((exp) => (exp._id === id ? { ...exp, ...updatedData } : exp))
-        );
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error("Failed to update expense:", error);
-      return false;
+  const updateExpense = useCallback(async (id: string, updatedData: any) => {
+    const response = await fetch(`/api/expenses/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedData),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || "Failed to update expense");
     }
-  };
+    return response.json();
+  }, []);
 
   return (
-    <ExpenseContext.Provider value={{ expenses, setExpenses, fetchExpenses, loading, loadingMore, hasMore, currentPage, error, setError, updateExpense }}>
+    <ExpenseContext.Provider value={{ updateExpense, decryptExpenses }}>
       {children}
     </ExpenseContext.Provider>
   );
 }
 
-// wrapper hook to use the context
 export function useExpenses() {
   const context = useContext(ExpenseContext);
   if (!context) {
-    throw new Error("useExpenses must be used within an ExpenseProvider");
+    throw new Error("useExpenses must be used within ExpenseProvider");
   }
   return context;
 }

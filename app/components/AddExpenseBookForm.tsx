@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { mutate } from "swr";
 import ErrorMessage from "./ErrorMessage";
 import { supportedCurrencies } from "@/utils/currencyConverter";
 import { useWallet } from "@/context/WalletContext";
+import { encryptExpenseBookPayload } from "@/crypto/services/payloadEncryption.service";
+import { getMasterKey } from "@/crypto/indexeddb/cacheManager";
 
 interface AddExpenseBookFormProps {
   onSuccess: () => void;
@@ -29,15 +32,33 @@ export default function AddExpenseBookForm({ onSuccess }: AddExpenseBookFormProp
     }
 
     try {
+      const masterKey = getMasterKey();
+      const { encryptedTitle, encryptedDescription, encryptionVersion } = await encryptExpenseBookPayload(
+        { title: title.trim(), description: description.trim() },
+        masterKey,
+      );
+
+      const body: Record<string, any> = {
+        currency: defaultCurrency,
+        encryptedTitle,
+        encryptedDescription,
+        encryptionVersion,
+      };
+
       const response = await fetch("/api/expense-books", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, description, currency: defaultCurrency }),
+        body: JSON.stringify(body),
       });
 
       if (response.ok) {
         setTitle("");
         setDescription("");
+        mutate(
+          (key) => typeof key === "string" && key.startsWith("/api/expense-books"),
+          undefined,
+          { revalidate: true },
+        );
         onSuccess();
       } else {
         const data = await response.json();

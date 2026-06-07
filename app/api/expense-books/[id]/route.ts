@@ -43,20 +43,20 @@ export async function PUT(
 
     try {
         const { id } = await params;
-        const { title, description, currency } = await req.json();
-
-        if (!title || title.trim() === "") {
-            return NextResponse.json({ error: "Title is required" }, { status: 400 });
-        }
+        const { currency, encryptedTitle, encryptedDescription, encryptionVersion } = await req.json();
 
         await connectDB();
+        const updateFields: Record<string, any> = {};
+        if (encryptedTitle) {
+            updateFields.encryptedTitle = encryptedTitle;
+            updateFields.encryptedDescription = encryptedDescription;
+            updateFields.encryptionVersion = encryptionVersion ?? 1;
+        }
+        if (currency) updateFields.currency = currency;
+
         const book = await ExpenseBook.findOneAndUpdate(
             { _id: id, userId: session.user.id },
-            { 
-                title: title.trim(), 
-                description: description?.trim() ?? "",
-                currency: currency?.trim()
-            },
+            { $set: updateFields },
             { new: true }
         );
 

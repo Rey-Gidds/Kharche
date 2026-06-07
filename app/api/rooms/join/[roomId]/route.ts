@@ -1,16 +1,17 @@
-import { auth } from "@/lib/auth";
 import { getCachedSession } from "@/lib/cachedSession";
 import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
-import User from "@/models/User";
-import { initBalancesForNewMember } from "@/lib/rooms/balanceEngine";
+import RoomMembership from "@/models/RoomMembership";
+import { roomEventBus } from "@/lib/sse/roomEventBus";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 /**
  * POST /api/rooms/join/[roomId]
- * Authenticated user joins a room via invite link.
+ * Authenticated user requests to join a room via invite link.
+ * Creates a pending membership (KEY_EXCHANGE_PENDING) — does NOT add to room.users.
+ * Emits SSE to the creator.
  */
 export async function POST(
   _req: Request,
@@ -27,49 +28,53 @@ export async function POST(
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
     // Already a member?
-    const alreadyMember = room.users.some((uid: any) => uid.toString() === session.user.id);
-    if (alreadyMember) {
-      return NextResponse.json({ message: "You are already a member of this room.", room });
+    const existingMembership = await RoomMembership.findOne({
+      roomId,
+      userId: session.user.id,
+      status: { $ne: "LEFT" },
+    });
+
+    if (existingMembership && existingMembership.status === "ACTIVE") {
+      return NextResponse.json({ message: "You are already a member of this room." });
     }
 
-    const existingUserIds = room.users.map((uid: any) => uid.toString());
-
-    const mongoSession = await mongoose.startSession();
-    mongoSession.startTransaction();
-
-    try {
-      const userId = new mongoose.Types.ObjectId(session.user.id);
-
-      // Add user to room
-      await Room.updateOne(
-        { _id: roomId },
-        { $addToSet: { users: userId } },
-        { session: mongoSession }
-      );
-
-      // Add room to user's rooms
-      await User.updateOne(
-        { _id: userId },
-        { $addToSet: { rooms: new mongoose.Types.ObjectId(roomId) } },
-        { session: mongoSession }
-      );
-
-      // Initialize balance entries for new member
-      await initBalancesForNewMember(mongoSession, roomId, session.user.id, existingUserIds);
-
-      await mongoSession.commitTransaction();
-      mongoSession.endSession();
-
-      const updatedRoom = await Room.findById(roomId)
-        .populate("users", "name email image")
-        .lean();
-
-      return NextResponse.json({ message: "Joined room successfully!", room: updatedRoom });
-    } catch (txErr) {
-      await mongoSession.abortTransaction();
-      mongoSession.endSession();
-      throw txErr;
+    if (existingMembership && existingMembership.status === "KEY_EXCHANGE_PENDING") {
+      return NextResponse.json({ message: "Join request already pending.", membershipId: existingMembership._id, status: "KEY_EXCHANGE_PENDING" });
     }
+
+    if (existingMembership && existingMembership.status === "KEY_AVAILABLE") {
+      // Key already delivered — just activate
+      return NextResponse.json({ message: "Key already available. Please activate.", status: "KEY_AVAILABLE" });
+    }
+
+    // Create pending membership (upsert for re-join after LEFT)
+    const membership = await RoomMembership.findOneAndUpdate(
+      { roomId, userId: session.user.id },
+      {
+        roomId: new mongoose.Types.ObjectId(roomId),
+        userId: new mongoose.Types.ObjectId(session.user.id),
+        status: "KEY_EXCHANGE_PENDING",
+        currentKeyVersion: 0,
+        $unset: { activatedAt: "", keyDeliveredAt: "" },
+      },
+      { upsert: true, new: true }
+    );
+
+    // Find creator (first user in room.users)
+    const creatorId = room.users[0]?.toString();
+    if (creatorId) {
+      roomEventBus.emit(creatorId, {
+        type: "MEMBER_WAITING_FOR_KEY",
+        roomId,
+        userId: session.user.id,
+        timestamp: Date.now(),
+      });
+    }
+
+    return NextResponse.json({
+      membershipId: membership._id,
+      status: "KEY_EXCHANGE_PENDING",
+    });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

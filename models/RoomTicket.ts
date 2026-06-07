@@ -16,12 +16,13 @@ export interface IRoomTicket extends Document {
   creatorId: mongoose.Types.ObjectId; // payer
   bearerId?: mongoose.Types.ObjectId; // receiver (settlements only)
   type: TicketType;
-  title: string;
-  description?: string;
   totalAmount: number; // integer, smallest currency unit
   splitType: SplitType;
   distribution: IDistributionEntry[];
   involvedUsers: mongoose.Types.ObjectId[];
+  encryptedTitle: string;
+  encryptedDescription: string;
+  keyVersion: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,8 +42,6 @@ const RoomTicketSchema = new Schema<IRoomTicket>(
     creatorId: { type: Schema.Types.ObjectId, ref: "User", required: true },
     bearerId: { type: Schema.Types.ObjectId, ref: "User" },
     type: { type: String, enum: ["expense", "settlement"], required: true, default: "expense" },
-    title: { type: String, required: true },
-    description: { type: String },
     totalAmount: { type: Number, required: true }, // integer, smallest unit
     splitType: {
       type: String,
@@ -51,6 +50,9 @@ const RoomTicketSchema = new Schema<IRoomTicket>(
     },
     distribution: [DistributionEntrySchema],
     involvedUsers: [{ type: Schema.Types.ObjectId, ref: "User" }],
+    encryptedTitle: { type: String, required: true },
+    encryptedDescription: { type: String, default: "" },
+    keyVersion: { type: Number, required: true },
   },
   { timestamps: true }
 );

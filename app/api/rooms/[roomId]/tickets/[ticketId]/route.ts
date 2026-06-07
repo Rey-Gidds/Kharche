@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomBook from "@/models/RoomBook";
 import RoomTicket from "@/models/RoomTicket";
+import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { updateBalances } from "@/lib/rooms/balanceEngine";
 import { calculateSplit, validateSplitInput, SplitType } from "@/lib/rooms/splitCalculator";
 import { toSmallestUnit } from "@/utils/roomCurrency";
@@ -22,17 +23,28 @@ export async function PUT(
   try {
     const { roomId, ticketId } = await params;
     const body = await req.json();
-    const { title, description, totalAmount, splitType, involvedUsers, splitData, creatorId } = body;
+    const { totalAmount, splitType, involvedUsers, splitData, creatorId, encryptedTitle, encryptedDescription, title, description } = body;
 
     await connectDB();
+
+    // ACTIVE membership required
+    try {
+      await requireActiveMembership(roomId, session.user.id);
+    } catch {
+      return NextResponse.json({ error: "Active membership required" }, { status: 403 });
+    }
 
     const room = await Room.findById(roomId).lean();
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
-    const roomUserIds = room.users.map((u: any) => u.toString());
-    if (!roomUserIds.includes(session.user.id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // When room has encryption, require encrypted title; otherwise accept plain text
+    if (room.activeKeyVersion > 0) {
+      if (!encryptedTitle) return NextResponse.json({ error: "Encrypted title is required" }, { status: 400 });
+    } else {
+      if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
     }
+
+    const roomUserIds = room.users.map((u: any) => u.toString());
 
     const ticket = await RoomTicket.findOne({ _id: ticketId, roomId });
     if (!ticket) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
@@ -111,9 +123,9 @@ export async function PUT(
         }
       }
 
-      // Step 3: Update ticket
-      ticket.title = title?.trim() || ticket.title;
-      ticket.description = description?.trim() ?? ticket.description;
+      // Step 3: Update ticket — use encrypted or plain text based on room config
+      ticket.encryptedTitle = encryptedTitle || title || "";
+      ticket.encryptedDescription = encryptedDescription ?? (description ?? "");
       ticket.totalAmount = totalSmallest;
       ticket.splitType = splitType;
       ticket.distribution = newDistribution.map((e) => ({
@@ -156,13 +168,15 @@ export async function DELETE(
     const { roomId, ticketId } = await params;
     await connectDB();
 
+    // ACTIVE membership required
+    try {
+      await requireActiveMembership(roomId, session.user.id);
+    } catch {
+      return NextResponse.json({ error: "Active membership required" }, { status: 403 });
+    }
+
     const room = await Room.findById(roomId).lean();
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
-
-    const roomUserIds = room.users.map((u: any) => u.toString());
-    if (!roomUserIds.includes(session.user.id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const ticket = await RoomTicket.findOne({ _id: ticketId, roomId });
     if (!ticket) return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
@@ -186,8 +200,6 @@ export async function DELETE(
         // Settlement reversal: creator → bearer
         const creatorId = ticket.creatorId.toString();
         const bearerId = ticket.bearerId!.toString();
-        // Original settlement applied: updateBalances(creatorId, bearerId, -totalAmount)
-        // Reverse: updateBalances(creatorId, bearerId, +totalAmount)
         await updateBalances(mongoSession, roomId, creatorId, bearerId, ticket.totalAmount);
       }
 

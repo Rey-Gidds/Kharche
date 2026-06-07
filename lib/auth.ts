@@ -2,6 +2,12 @@ import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { MongoClient } from "mongodb";
 import { sendEmail } from "./email";
+import dns from "dns";
+
+// Force Node.js to use Google's public DNS servers.
+// This fixes querySrv ECONNREFUSED errors on Windows where the local/ISP DNS
+// resolver refuses SRV record queries used by mongodb+srv:// connection strings.
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 
 // Better Auth uses raw mongodb driver. We ensure only one connection is made.
 const MONGODB_URI = process.env.MONGODB_URI!;
@@ -20,12 +26,16 @@ if (process.env.NODE_ENV === "development") {
     };
 
     if (!globalWithMongo._mongoClient) {
-        globalWithMongo._mongoClient = new MongoClient(MONGODB_URI);
+        globalWithMongo._mongoClient = new MongoClient(MONGODB_URI, {
+            family: 4, // Force IPv4 to avoid Node.js SRV/IPv6 resolution issues on Windows
+        });
     }
     client = globalWithMongo._mongoClient;
 } else {
     // In production mode, it's best to not use a global variable.
-    client = new MongoClient(MONGODB_URI);
+    client = new MongoClient(MONGODB_URI, {
+        family: 4, // Force IPv4
+    });
 }
 
 export const db = client.db();

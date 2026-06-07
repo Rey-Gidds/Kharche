@@ -3,6 +3,7 @@ import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomStats from "@/models/RoomStats";
 import User from "@/models/User";
+import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -22,14 +23,14 @@ export async function GET(
     const { roomId } = await params;
     await connectDB();
 
-    // Verify membership
-    const room = await Room.findById(roomId).lean();
-    if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
-
-    const roomUserIds = room.users.map((u: any) => u.toString());
-    if (!roomUserIds.includes(session.user.id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    // ACTIVE membership required
+    try {
+      await requireActiveMembership(roomId, session.user.id);
+    } catch {
+      return NextResponse.json({ error: "Active membership required" }, { status: 403 });
     }
+
+    const room = await Room.findById(roomId).lean();
 
     // Fetch only THIS user's stats
     const stats = await RoomStats.findOne({ roomId, userId: session.user.id }).lean();
@@ -51,7 +52,7 @@ export async function GET(
     return NextResponse.json({
       roomId,
       userId: session.user.id,
-      currency: room.currency,
+      currency: room?.currency ?? "INR",
       balances: enrichedBalances,
     });
   } catch (err: any) {

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import BottomSheet from "./BottomSheet";
 import { useWallet } from "@/context/WalletContext";
+import { useEncryption } from "@/hooks/useEncryption";
 import SignOutButton from "./SignOutButton";
 import Link from "next/link";
 import DownloadLink from "./DownloadLink";
@@ -18,6 +19,7 @@ export default function AccountSheet({ session }: AccountSheetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
   const { walletBalance, walletCurrency } = useWallet();
+  const { setupCompleted, isUnlocked } = useEncryption();
   const router = useRouter();
 
   const initial = session?.user?.name ? session.user.name.charAt(0).toUpperCase() : "U";
@@ -48,11 +50,22 @@ export default function AccountSheet({ session }: AccountSheetProps) {
         <div className="pb-2">
           {/* Profile hero */}
           <div className="flex flex-col items-center gap-3 pb-6">
-            <div className="w-20 h-20 rounded-full bg-[var(--accent)] text-[var(--background)] flex items-center justify-center font-bold text-3xl shadow-lg ring-4 ring-[var(--border)]">
+            <div className="relative w-20 h-20 rounded-full bg-[var(--accent)] text-[var(--background)] flex items-center justify-center font-bold text-3xl shadow-lg ring-4 ring-[var(--border)]">
               {session?.user?.image ? (
                 <img src={session.user.image} alt={name} className="w-full h-full rounded-full object-cover" />
               ) : (
                 initial
+              )}
+              {/* Lock badge */}
+              {setupCompleted && (
+                <span className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-[var(--surface)] flex items-center justify-center ${
+                  isUnlocked ? "bg-emerald-500" : "bg-[var(--muted)]"
+                }`}>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="10" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                </span>
               )}
             </div>
             <div className="text-center animate-in slide-in-from-bottom-2 duration-500 delay-100">
@@ -81,6 +94,23 @@ export default function AccountSheet({ session }: AccountSheetProps) {
             </div>
           </div>
 
+          {/* Encryption status */}
+          {setupCompleted && (
+            <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl mb-4 ${
+              isUnlocked ? "bg-emerald-500/5 border border-emerald-500/10" : "bg-amber-500/5 border border-amber-500/10"
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${isUnlocked ? "bg-emerald-500" : "bg-amber-500"}`} />
+              <div className="flex-1">
+                <p className="text-[11px] font-bold text-[var(--foreground)]">
+                  {isUnlocked ? "Encryption Active" : "Encryption Locked"}
+                </p>
+                <p className="text-[9px] text-[var(--muted)]">
+                  {isUnlocked ? "Your data is encrypted end-to-end." : "Enter passphrase to access encrypted data."}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Action buttons */}
           <div className="flex flex-col gap-3">
             <div onClick={() => setIsOpen(false)}>
@@ -96,9 +126,19 @@ export default function AccountSheet({ session }: AccountSheetProps) {
             >
               Manage Account
             </Link>
+
+
+
             <div className="w-full flex justify-center">
               <SignOutButton />
             </div>
+          </div>
+
+          {/* Encryption info footer */}
+          <div className="mt-6 pt-4 border-t border-[var(--border)]">
+            <p className="text-[9px] text-[var(--muted)] text-center leading-relaxed">
+              This application uses AES-GCM, PBKDF2/Argon2id and public-key cryptography to protect your encrypted data.
+            </p>
           </div>
         </div>
       </BottomSheet>

@@ -12,15 +12,24 @@ type SplitType = "equal" | "manual" | "percentage" | "ratio";
 interface AddTicketModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (persistedTicket?: any) => void;
   room: any;
   currentUserId: string;
-  initialData?: any; // Pass existing ticket data for editing
+  initialData?: any;
+  roomKey?: CryptoKey | null;
 }
 
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
 
-export default function AddTicketModal({ isOpen, onClose, onSuccess, room, currentUserId, initialData }: AddTicketModalProps) {
+export default function AddTicketModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  room,
+  currentUserId,
+  initialData,
+  roomKey
+}: AddTicketModalProps) {
   const members: any[] = room?.users ?? [];
   const currency: string = room?.currency ?? "INR";
 
@@ -165,23 +174,6 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
       );
     }
 
-    const ticketKey = `/api/rooms/${room._id}/tickets`;
-    const statsKey = `/api/rooms/${room._id}/stats`;
-
-    // Construct the ticket object for optimistic update
-    const optimisticTicket = {
-      _id: initialData?._id || `temp-${Date.now()}`,
-      title: title.trim(),
-      description: description.trim(),
-      totalAmount: toSmallestUnit(parseFloat(amount), currency),
-      splitType,
-      creatorId: members.find(m => m._id === payerId) || { _id: payerId, name: "You" },
-      involvedUsers: involvedUsers.map(id => members.find(m => m._id === id) || { _id: id }),
-      distribution: previewDistribution,
-      type: "expense",
-      createdAt: initialData?.createdAt || new Date().toISOString(),
-    };
-
     const saveTask = async () => {
       setLoading(true);
       try {
@@ -191,47 +183,101 @@ export default function AddTicketModal({ isOpen, onClose, onSuccess, room, curre
         
         const method = initialData ? "PUT" : "POST";
 
-        // Perform optimistic update
+        // Encrypt title/description with room key if available
+        let encryptedTitle: string | undefined;
+        let encryptedDescription: string | undefined;
+        if (roomKey) {
+          const { encryptTicketPayload } = await import("@/crypto/services/roomKey.service");
+          const encrypted = await encryptTicketPayload(
+            { title: title.trim(), description: description.trim() },
+            roomKey,
+          );
+          encryptedTitle = encrypted.encryptedTitle;
+          encryptedDescription = encrypted.encryptedDescription;
+        }
+
+        const body: Record<string, any> = {
+          totalAmount: parseFloat(amount),
+          splitType,
+          creatorId: payerId,
+          involvedUsers,
+          splitData: payload,
+        };
+        if (encryptedTitle) {
+          body.encryptedTitle = encryptedTitle;
+          body.encryptedDescription = encryptedDescription;
+        } else {
+          body.title = title.trim();
+          body.description = description.trim() || undefined;
+        }
+
+        // 1. Do the fetch FIRST — outside of mutate, so errors are cleanly caught
+        const res = await fetch(endpoint, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Failed to save expense.");
+        }
+
+        const serverTicket = await res.json();
+
+        // Decrypt if needed for cache
+        if (roomKey && serverTicket.encryptedTitle) {
+          const { decryptTicketPayload } = await import("@/crypto/services/roomKey.service");
+          try {
+            const payload = await decryptTicketPayload(
+              { encryptedTitle: serverTicket.encryptedTitle, encryptedDescription: serverTicket.encryptedDescription },
+              roomKey,
+            );
+            serverTicket.title = payload.title;
+            serverTicket.description = payload.description;
+          } catch (err) {
+            console.error("Failed to decrypt server ticket:", err);
+          }
+        }
+
+        // 2. THEN update the cache with the server-confirmed data
         await mutate(
-          ticketKey,
-          async () => {
-            const res = await fetch(endpoint, {
-              method,
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: title.trim(),
-                description: description.trim() || undefined,
-                totalAmount: parseFloat(amount),
-                splitType,
-                creatorId: payerId,
-                involvedUsers,
-                splitData: payload,
-              }),
-            });
-            
-            if (!res.ok) {
-              const data = await res.json();
-              throw new Error(data.error || "Failed to save expense.");
+          (key) => typeof key === 'string' && key.startsWith(`/api/rooms/${room._id}/tickets`),
+          (currentData: any) => {
+            if (!currentData || !currentData.data) {
+              return { data: [serverTicket], hasMore: false, page: 1, total: 1 };
             }
-
-            mutate(statsKey);
-            refetchWallet();
-
-            return fetch(ticketKey).then(r => r.json());
+            if (initialData) {
+              return {
+                ...currentData,
+                data: currentData.data.map((t: any) => t._id === initialData._id ? serverTicket : t),
+              };
+            } else {
+              return {
+                ...currentData,
+                data: [serverTicket, ...currentData.data],
+                total: (currentData.total || 0) + 1,
+              };
+            }
           },
           {
-            optimisticData: initialData ? undefined : (currentTickets: any[] = []) => {
-              return [optimisticTicket, ...currentTickets];
-            },
-            rollbackOnError: true,
             revalidate: true,
             populateCache: true,
           }
         );
 
-        onSuccess();
-        onClose();
+        // Mutate stats
+        mutate(
+          (key) => typeof key === 'string' && key.startsWith(`/api/rooms/${room._id}/stats`),
+          undefined,
+          { revalidate: true },
+        );
+        refetchWallet();
+
+        onSuccess(serverTicket);
+        onClose(); // Close modal only after successful completion
       } catch (e: any) {
+        console.error("Save failed:", e);
         setError(e.message || "Something went wrong. Please try again.");
       } finally {
         setLoading(false);

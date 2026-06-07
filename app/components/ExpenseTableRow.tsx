@@ -12,6 +12,7 @@ interface ExpenseTableRowProps {
   convertedAmount: number;
   isSelected: boolean;
   isProcessing?: boolean;
+  isOptimistic?: boolean;
   activeMenu: string | null;
   setActiveMenu: (id: string | null) => void;
   openDrawer: (id: string, mode: "view" | "edit") => void;
@@ -26,6 +27,7 @@ export default function ExpenseTableRow({
   convertedAmount,
   isSelected,
   isProcessing,
+  isOptimistic,
   activeMenu,
   setActiveMenu,
   openDrawer,
@@ -50,14 +52,16 @@ export default function ExpenseTableRow({
       <div className="flex flex-col gap-2 md:hidden">
         {/* Top row: Category + Amount */}
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-[var(--foreground)] bg-[var(--border)]/50 px-2.5 py-1 rounded-full tracking-wide">
-            {expense.category}
+          <span className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-[var(--foreground)] bg-[var(--border)]/50 px-2.5 py-1 rounded-full tracking-wide">
+              {expense.category}
+            </span>
           </span>
           <span className="font-playfair font-bold text-[var(--foreground)] text-lg">
             {formatCurrency(convertedAmount, displayCurrency)}
           </span>
         </div>
-        {/* Bottom row: Date + Original Currency Note + 3-dots */}
+        {/* Bottom row: Date + Original Currency Note + 3-dots or processing dot */}
         <div className="flex items-center justify-between">
           <span className="text-xs text-[var(--muted)]">
             {formatDate(expense.date)}
@@ -68,12 +72,16 @@ export default function ExpenseTableRow({
                  orig. {formatCurrency(expense.amount, expense.currency)}
               </span>
             )}
-            <button
-              onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === expense._id ? null : expense._id); }}
-              className={`p-1.5 rounded cursor-pointer ${activeMenu === expense._id ? 'text-[var(--foreground)] bg-[var(--border)]' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-            </button>
+            {isProcessing ? (
+              <span className="optimistic-dot" />
+            ) : (
+              <button
+                onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === expense._id ? null : expense._id); }}
+                className={`p-1.5 rounded cursor-pointer ${activeMenu === expense._id ? 'text-[var(--foreground)] bg-[var(--border)]' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -84,8 +92,10 @@ export default function ExpenseTableRow({
       </div>
       
       <div className="hidden md:block">
-        <span className="text-[11px] font-bold text-[var(--foreground)] bg-[var(--border)]/50 px-2.5 py-1 rounded-full tracking-wide">
-          {expense.category}
+        <span className="flex items-center gap-1.5">
+          <span className="text-[11px] font-bold text-[var(--foreground)] bg-[var(--border)]/50 px-2.5 py-1 rounded-full tracking-wide">
+            {expense.category}
+          </span>
         </span>
       </div>
 
@@ -101,12 +111,18 @@ export default function ExpenseTableRow({
       </div>
 
       <div className="hidden md:flex justify-end relative px-2 w-16">
-        <button 
-          onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === expense._id ? null : expense._id); }}
-          className={`p-1.5 rounded cursor-pointer ${activeMenu === expense._id ? 'text-[var(--foreground)] bg-[var(--border)]' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
-         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-        </button>
+        {isProcessing ? (
+          <div className="flex items-center justify-center p-1.5">
+            <span className="optimistic-dot" />
+          </div>
+        ) : (
+          <button 
+            onClick={(e) => { e.stopPropagation(); setActiveMenu(activeMenu === expense._id ? null : expense._id); }}
+            className={`p-1.5 rounded cursor-pointer ${activeMenu === expense._id ? 'text-[var(--foreground)] bg-[var(--border)]' : 'text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+           >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </button>
+        )}
       </div>
 
       {/* Action Menu Drawer – renders on both mobile and desktop */}

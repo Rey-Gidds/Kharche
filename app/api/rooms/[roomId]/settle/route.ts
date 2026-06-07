@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomBook from "@/models/RoomBook";
 import RoomTicket from "@/models/RoomTicket";
+import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { updateBalances } from "@/lib/rooms/balanceEngine";
 import { toSmallestUnit } from "@/utils/roomCurrency";
 import mongoose from "mongoose";
@@ -13,8 +14,9 @@ import { NextResponse } from "next/server";
 /**
  * POST /api/rooms/[roomId]/settle
  * Records a settlement: current user (payer/creatorId) pays `receiverId` (bearerId) `amount`.
+ * Settlement title is always plaintext "Settlement" — not sensitive.
  *
- * Body: { receiverId: string, amount: number } — amount in display currency
+ * Body: { receiverId: string, amount: number, encryptedTitle: string, encryptedDescription?: string, keyVersion: number }
  */
 export async function POST(
   req: Request,
@@ -25,7 +27,7 @@ export async function POST(
 
   try {
     const { roomId } = await params;
-    const { receiverId, amount } = await req.json();
+    const { receiverId, amount, encryptedTitle, encryptedDescription, keyVersion } = await req.json();
 
     if (!receiverId) return NextResponse.json({ error: "receiverId is required" }, { status: 400 });
     if (!amount || Number(amount) <= 0) {
@@ -37,13 +39,17 @@ export async function POST(
 
     await connectDB();
 
+    // ACTIVE membership required
+    try {
+      await requireActiveMembership(roomId, session.user.id);
+    } catch {
+      return NextResponse.json({ error: "Active membership required" }, { status: 403 });
+    }
+
     const room = await Room.findById(roomId).lean();
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
 
     const roomUserIds = room.users.map((u: any) => u.toString());
-    if (!roomUserIds.includes(session.user.id)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
     if (!roomUserIds.includes(receiverId)) {
       return NextResponse.json({ error: "Receiver is not a member of this room" }, { status: 400 });
     }
@@ -56,22 +62,24 @@ export async function POST(
     try {
       const payerId = session.user.id;
 
-      // Create settlement ticket
+      // Settlement titles are always plaintext "Settlement" — not encrypted
+      const ticketData: Record<string, any> = {
+        roomId,
+        bookId: room.bookId,
+        creatorId: payerId,
+        bearerId: receiverId,
+        type: "settlement",
+        totalAmount: settleAmountSmallest,
+        splitType: "settlement",
+        distribution: [],
+        involvedUsers: [payerId, receiverId],
+        encryptedTitle: encryptedTitle ?? "Settlement",
+        encryptedDescription: encryptedDescription ?? "",
+        keyVersion: keyVersion ?? room.activeKeyVersion,
+      };
+
       const [ticket] = await RoomTicket.create(
-        [
-          {
-            roomId,
-            bookId: room.bookId,
-            creatorId: payerId,
-            bearerId: receiverId,
-            type: "settlement",
-            title: "Settlement",
-            totalAmount: settleAmountSmallest,
-            splitType: "settlement",
-            distribution: [],
-            involvedUsers: [payerId, receiverId],
-          },
-        ],
+        [ticketData],
         { session: mongoSession }
       );
 
@@ -82,13 +90,7 @@ export async function POST(
         { session: mongoSession }
       );
 
-      // Update balances:
-      // payer (B) sends money to receiver (A)
-      // B → A balance decreases by settleAmountSmallest
-      // A → B balance increases by settleAmountSmallest
-      // Use updateBalances(session, roomId, B, A, -settleAmount) which gives:
-      //   B→A: +(-settleAmount) = -settleAmount ✓
-      //   A→B: -(-settleAmount) = +settleAmount ✓
+      // Update balances
       await updateBalances(mongoSession, roomId, payerId, receiverId, -settleAmountSmallest);
 
       await mongoSession.commitTransaction();

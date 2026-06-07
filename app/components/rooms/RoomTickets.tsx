@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatRoomCurrency } from "@/utils/roomCurrency";
 import { createPortal } from "react-dom";
 import AddTicketModal from "./AddTicketModal";
@@ -11,11 +11,12 @@ import useSWR from "swr";
 import { useWallet } from "@/context/WalletContext";
 import { useProcessing } from "@/context/ProcessingContext";
 import { SkeletonRow } from "../Skeletons";
+import { decryptTicketPayload } from "@/crypto/services/roomKey.service";
 
 interface RoomTicketsProps {
   room: any;
   currentUserId: string;
-  refreshTrigger: number;
+  roomKey: CryptoKey | null;
 }
 
 function TicketTypeBadge({ type }: { type: string }) {
@@ -45,11 +46,58 @@ function SplitBadge({ splitType }: { splitType: string }) {
 
 const PAGE_SIZE = 20;
 
-export default function RoomTickets({ room, currentUserId, refreshTrigger }: RoomTicketsProps) {
-  const swrKey = `/api/rooms/${room._id}/tickets?page=1&limit=${PAGE_SIZE}`;
-  const { data: swrData, error: swrError, mutate: mutateTickets, isValidating } = useSWR(swrKey);
+/**
+ * Decrypt a batch of tickets in place. If `roomKey` is null, returns them as-is.
+ */
+async function decryptBatch(tickets: any[], key: CryptoKey | null): Promise<any[]> {
+  if (!key) return tickets;
+  return Promise.all(
+    tickets.map(async (ticket) => {
+      if (!ticket.encryptedTitle) return ticket;
+      try {
+        const payload = await decryptTicketPayload(
+          { encryptedTitle: ticket.encryptedTitle, encryptedDescription: ticket.encryptedDescription },
+          key,
+        );
+        return { ...ticket, title: payload.title, description: payload.description };
+      } catch {
+        return ticket;
+      }
+    }),
+  );
+}
 
-  const [extraPages, setExtraPages] = useState<any[]>([]);
+/** SWR fetcher: fetch page-1 tickets. */
+async function fetchPage1(url: string): Promise<{ data: any[]; hasMore: boolean; page: number; total: number }> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(body || "Failed to load tickets");
+  }
+  const result = await res.json();
+  return result;
+}
+
+export default function RoomTickets({ room, currentUserId, roomKey }: RoomTicketsProps) {
+  // Plain string SWR key — cache-busting `k` param changes when roomKey transitions, forcing a fresh fetch + decrypt
+  const swrKey = `/api/rooms/${room._id}/tickets?page=1&limit=${PAGE_SIZE}&k=${!!roomKey}`;
+  const { data: swrData, error: swrError, mutate: mutateTickets } = useSWR(swrKey, fetchPage1, {
+    revalidateOnFocus: false,
+  });
+
+  // Decrypted page-1 data — derived via SWR for caching; no useEffect
+  // Key includes per-ticket identity + updatedAt so ANY ticket edit invalidates the cache
+  const page1Key = swrData
+    ? `page1-decrypted-${room._id}-${swrKey}-${(swrData.data ?? []).map((t: any) => `${t._id}-${t.updatedAt || t.createdAt || t.totalAmount || ""}`).join(",")}`
+    : null;
+  const { data: page1Decrypted } = useSWR(
+    page1Key,
+    async () => decryptBatch(swrData?.data ?? [], roomKey),
+    { revalidateOnFocus: false, dedupingInterval: 30000 },
+  );
+
+  const [extraPagesRaw, setExtraPagesRaw] = useState<any[]>([]);
+  const [extraPagesDecrypted, setExtraPagesDecrypted] = useState<any[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
   const [manualHasMore, setManualHasMore] = useState<boolean | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -63,32 +111,39 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
   const [editTicket, setEditTicket] = useState<any | null>(null);
   const [mounted, setMounted] = useState(false);
 
+  // Decrypt extra pages whenever raw extra pages or roomKey changes
+  const roomKeyRef = useRef(roomKey);
+  roomKeyRef.current = roomKey;
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const decrypted = await decryptBatch(extraPagesRaw, roomKeyRef.current);
+      if (!cancelled) setExtraPagesDecrypted(decrypted);
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extraPagesRaw, roomKey]);
+
   const { sheetRef: detailSheetRef, style: detailStyle, handlers: detailHandlers, isClosing: isDetailClosing } = useDraggableSheet({
     isOpen: !!detailTicket,
     onClose: () => setDetailTicket(null),
   });
 
-  // Derived data
-  const page1Tickets = swrData ? (Array.isArray(swrData) ? swrData : (swrData.data || [])) : [];
-  const tickets = [...page1Tickets, ...extraPages];
-  const hasMore = manualHasMore !== null ? manualHasMore : (swrData && !Array.isArray(swrData) ? swrData.hasMore : false);
+  // Concatenated list of all decrypted tickets
+  const decryptedTickets = [...(page1Decrypted ?? []), ...extraPagesDecrypted];
+
+  const hasMore = manualHasMore !== null ? manualHasMore : (swrData?.hasMore ?? false);
   const loading = !swrData && !swrError;
 
   useEffect(() => { setMounted(true); }, []);
 
   // Reset pagination when room changes
   useEffect(() => {
-    setExtraPages([]);
+    setExtraPagesRaw([]);
+    setExtraPagesDecrypted([]);
     setManualHasMore(null);
     setCurrentPage(1);
   }, [room._id]);
-
-  // Handle refresh trigger
-  useEffect(() => {
-    if (refreshTrigger > 0) {
-      mutateTickets();
-    }
-  }, [refreshTrigger, mutateTickets]);
 
   const fetchMore = async () => {
     const nextPage = currentPage + 1;
@@ -101,7 +156,7 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
       const data = Array.isArray(result) ? result : (result.data || []);
       const more = Array.isArray(result) ? false : (result.hasMore || false);
 
-      setExtraPages((prev) => [...prev, ...data]);
+      setExtraPagesRaw((prev) => [...prev, ...data]);
       setManualHasMore(more);
       setCurrentPage(nextPage);
     } catch (e: any) {
@@ -115,6 +170,8 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
     if (!confirm("Delete this ticket? All balance effects will be reversed.")) return;
 
     if (detailTicket?._id === ticketId) setDetailTicket(null);
+    // Save snapshots for rollback (no longer strictly needed since we don't optimistic update, but good for error handling if we were to change state. Actually, we don't need rollback snapshots since we only mutate after success now.)
+
     if (activeMenu === ticketId) setActiveMenu(null);
 
     await withProcessing(ticketId, async () => {
@@ -126,11 +183,19 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
         }
         globalMutate(`/api/rooms/${room._id}/stats`);
         refetchWallet();
-        mutateTickets(); // Revalidate SWR cache
-        // If we want to reset extraPages on delete (safest to avoid inconsistencies)
-        setExtraPages([]);
-        setManualHasMore(null);
-        setCurrentPage(1);
+        
+        // Remove the ticket from cache and local state ONLY AFTER SUCCESS
+        mutateTickets((currentData: any) => {
+          if (!currentData || !currentData.data) return currentData;
+          return {
+            ...currentData,
+            data: currentData.data.filter((t: any) => t._id !== ticketId),
+          };
+        }, { revalidate: false });
+        setExtraPagesRaw((prev) => prev.filter((t: any) => t._id !== ticketId));
+        setExtraPagesDecrypted((prev) => prev.filter((t: any) => t._id !== ticketId));
+        
+        await mutateTickets(); // Revalidate SWR cache to sync with server
       } catch (e: any) {
         console.error("Delete failed:", e);
         alert(e.message || "Something went wrong.");
@@ -141,7 +206,7 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 
-  if (loading && tickets.length === 0) {
+  if (loading && decryptedTickets.length === 0) {
     return (
       <div className="space-y-1 skeleton-stagger">
         {[1, 2, 3, 4, 5].map((i) => (
@@ -251,12 +316,12 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
 
   return (
     <div className="space-y-1">
-      {tickets.length === 0 ? (
+      {decryptedTickets.length === 0 ? (
         <div className="text-center py-16 text-sm text-[var(--muted)] italic">
           No expenses yet. Add one to get started.
         </div>
       ) : (
-        tickets.map((ticket: any, i: number) => {
+        decryptedTickets.map((ticket: any, i: number) => {
           const isSettlement = ticket.type === "settlement";
           const payer = ticket.creatorId;
           const isPayerYou = payer?._id === currentUserId || payer?._id?.toString() === currentUserId;
@@ -328,14 +393,20 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
                 )}
               </div>
 
-              {/* Action Menu (3-dots) */}
-              <button
-                onClick={(e) => { e.stopPropagation(); setActiveMenu(ticket._id); }}
-                className="shrink-0 p-1.5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface)] transition-colors cursor-pointer rounded"
-                title="Options"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-              </button>
+              {/* Action Menu (3-dots) or processing dot */}
+              {processingIds[ticket._id] ? (
+                <div className="shrink-0 flex items-center justify-center p-1.5 w-[34px] h-[34px]">
+                  <span className="optimistic-dot" />
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setActiveMenu(ticket._id); }}
+                  className="shrink-0 p-1.5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-[var(--surface)] transition-colors cursor-pointer rounded"
+                  title="Options"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                </button>
+              )}
             </div>
           );
         })
@@ -364,15 +435,15 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
         <ActionMenuDrawer
           isOpen={!!activeMenu}
           onClose={() => setActiveMenu(null)}
-          title={tickets.find((t) => t._id === activeMenu)?.title}
-          subtitle={tickets.find((t) => t._id === activeMenu)?.type === "settlement" ? "Settlement" : `Paid by ${tickets.find((t) => t._id === activeMenu)?.creatorId?.name ?? "Someone"}`}
-          amount={tickets.find((t) => t._id === activeMenu) ? formatRoomCurrency(tickets.find((t) => t._id === activeMenu).totalAmount, room.currency) : undefined}
+          title={decryptedTickets.find((t) => t._id === activeMenu)?.title}
+          subtitle={decryptedTickets.find((t) => t._id === activeMenu)?.type === "settlement" ? "Settlement" : `Paid by ${decryptedTickets.find((t) => t._id === activeMenu)?.creatorId?.name ?? "Someone"}`}
+          amount={decryptedTickets.find((t) => t._id === activeMenu) ? formatRoomCurrency(decryptedTickets.find((t) => t._id === activeMenu).totalAmount, room.currency) : undefined}
           onView={() => {
-            const t = tickets.find((t) => t._id === activeMenu);
+            const t = decryptedTickets.find((t) => t._id === activeMenu);
             if (t) setDetailTicket(t);
           }}
           onEdit={() => {
-            const t = tickets.find((t) => t._id === activeMenu);
+            const t = decryptedTickets.find((t) => t._id === activeMenu);
             if (t) setEditTicket(t);
           }}
           onDelete={() => {
@@ -380,7 +451,7 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
           }}
           canEditDelete={
             (() => {
-              const t = tickets.find((t) => t._id === activeMenu);
+              const t = decryptedTickets.find((t) => t._id === activeMenu);
               if (!t || t.type === "settlement") return false;
               const cid = t.creatorId?._id || t.creatorId;
               return cid?.toString() === currentUserId;
@@ -392,16 +463,17 @@ export default function RoomTickets({ room, currentUserId, refreshTrigger }: Roo
       <AddTicketModal
         isOpen={!!editTicket}
         onClose={() => setEditTicket(null)}
-        onSuccess={() => {
+        onSuccess={(persistedTicket) => {
           setEditTicket(null);
-          mutateTickets();
-          setExtraPages([]);
-          setManualHasMore(null);
-          setCurrentPage(1);
+          // Swap in the final server-confirmed data
+          if (persistedTicket) {
+            setExtraPagesRaw((prev) => prev.map((t) => t._id === persistedTicket._id ? persistedTicket : t));
+          }
         }}
         room={room}
         currentUserId={currentUserId}
         initialData={editTicket}
+        roomKey={roomKey}
       />
     </div>
   );

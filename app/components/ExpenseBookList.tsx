@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
+import useSWRInfinite from "swr/infinite";
 import ExpenseBookCard from "./ExpenseBookCard";
 import { ActionMenuDrawer } from "./ExpenseDrawer";
 import { supportedCurrencies } from "@/utils/currencyConverter";
 import BottomSheet from "./BottomSheet";
 import { useProcessing } from "@/context/ProcessingContext";
 import { SkeletonCard } from "./Skeletons";
+import { encryptExpenseBookPayload, decryptExpenseBookPayload } from "@/crypto/services/payloadEncryption.service";
+import { getMasterKey, onMasterKeyReady } from "@/crypto/indexeddb/cacheManager";
 
 interface ExpenseBook {
   _id: string;
@@ -19,7 +22,6 @@ interface ExpenseBook {
 
 interface ExpenseBookListProps {
   onSelectBook: (bookId: string, bookTitle: string, bookCurrency: string) => void;
-  refreshTrigger?: number;
 }
 
 function EditBookModal({
@@ -46,10 +48,27 @@ function EditBookModal({
     await withProcessing(book._id, async () => {
       setLoading(true);
       try {
+        const masterKey = getMasterKey();
+        let body: Record<string, any> = {};
+
+        if (masterKey) {
+          const { encryptedTitle, encryptedDescription, encryptionVersion } = await encryptExpenseBookPayload(
+            { title: title.trim(), description: description.trim() },
+            masterKey,
+          );
+          body.encryptedTitle = encryptedTitle;
+          body.encryptedDescription = encryptedDescription;
+          body.encryptionVersion = encryptionVersion;
+        } else {
+          body.title = title.trim();
+          body.description = description.trim();
+        }
+        body.currency = currency.trim();
+
         const res = await fetch(`/api/expense-books/${book._id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: title.trim(), description: description.trim(), currency: currency.trim() }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
         if (!res.ok) { setError(data.error || "Failed to update"); return; }
@@ -121,52 +140,72 @@ function EditBookModal({
 
 const PAGE_SIZE = 20;
 
-export default function ExpenseBookList({ onSelectBook, refreshTrigger }: ExpenseBookListProps) {
-  const [books, setBooks] = useState<ExpenseBook[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-
+export default function ExpenseBookList({ onSelectBook }: ExpenseBookListProps) {
   const [mounted, setMounted] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [editBook, setEditBook] = useState<ExpenseBook | null>(null);
-  const { processingIds, setProcessing, withProcessing } = useProcessing();
+  const { processingIds, withProcessing } = useProcessing();
 
   useEffect(() => { setMounted(true); }, []);
 
-  const fetchBooks = useCallback(async (page: number = 1, append: boolean = false) => {
-    if (append) {
-      setLoadingMore(true);
-    } else {
-      setLoading(true);
+  const decryptBooks = useCallback(async (rawBooks: any[]): Promise<any[]> => {
+    const mk = getMasterKey();
+    if (!mk) {
+      return rawBooks.map((book: any) => ({
+        ...book,
+        title: book.title || (book.encryptedTitle ? "Locked Collection" : "Untitled Collection"),
+        description: book.description || "",
+      }));
     }
-    try {
-      const res = await fetch(`/api/expense-books?page=${page}&limit=${PAGE_SIZE}`);
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to load books");
-      // Handle both paginated and legacy response shapes
-      const data: ExpenseBook[] = Array.isArray(result) ? result : (result.data ?? []);
-      const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
-      const returnedPage: number = Array.isArray(result) ? 1 : (result.page ?? 1);
-
-      if (append) {
-        setBooks((prev) => [...prev, ...data]);
-      } else {
-        setBooks(data);
-      }
-      setHasMore(more);
-      setCurrentPage(returnedPage);
-    } catch (e: any) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
-    }
+    return Promise.all(
+      rawBooks.map(async (book) => {
+        if (!book.encryptedTitle) return book;
+        try {
+          const decrypted = await decryptExpenseBookPayload(book, mk);
+          return { ...book, title: decrypted.title, description: decrypted.description };
+        } catch {
+          return { ...book, title: book.title || "Locked Collection", description: book.description || "" };
+        }
+      }),
+    );
   }, []);
 
-  // Initial load + refresh trigger → reset to page 1
-  useEffect(() => { fetchBooks(1, false); }, [fetchBooks, refreshTrigger]);
+  // SWR infinite key based on page index
+  const getKey = useCallback((pageIndex: number, previousPageData: any) => {
+    if (previousPageData && !previousPageData.hasMore) return null;
+    return `/api/expense-books?page=${pageIndex + 1}&limit=${PAGE_SIZE}`;
+  }, []);
+
+  const fetcher = useCallback(async (url: string) => {
+    const res = await fetch(url);
+    const result = await res.json();
+    if (!res.ok) throw new Error(result.error || "Failed to load books");
+    const rawData: ExpenseBook[] = Array.isArray(result) ? result : (result.data ?? []);
+    const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
+    const returnedPage: number = Array.isArray(result) ? 1 : (result.page ?? 1);
+    const decrypted = await decryptBooks(rawData);
+    return { data: decrypted, hasMore: more, page: returnedPage };
+  }, [decryptBooks]);
+
+  const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
+    getKey,
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+
+  // When encryption unlocks, re-fetch so decryptBooks can use the new master key
+  useEffect(() => {
+    const unsub = onMasterKeyReady(() => {
+      mutate();
+    });
+    return unsub;
+  }, [mutate]);
+
+  // Flatten paginated data
+  const books = data ? data.flatMap(page => page.data) : [];
+  const loading = isLoading && books.length === 0;
+  const loadingMore = isValidating && books.length > 0;
+  const hasMore = data ? data[data.length - 1]?.hasMore ?? false : false;
 
   const handleDelete = async (bookId: string) => {
     if (!confirm("Delete this collection? All its tickets will also be removed.")) return;
@@ -175,7 +214,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
       try {
         const res = await fetch(`/api/expense-books/${bookId}`, { method: "DELETE" });
         if (res.ok) {
-          fetchBooks(1, false);
+          mutate();
         } else {
           const data = await res.json();
           alert(data.error || "Failed to delete");
@@ -188,7 +227,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
 
   const activeBook = books.find((b) => b._id === activeMenu);
 
-  if (loading && books.length === 0) {
+  if (loading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6 skeleton-stagger">
         {[1, 2, 3, 4, 5, 6].map((i) => (
@@ -245,7 +284,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
       {hasMore && !loadingMore && (
         <div className="flex justify-center pt-4">
           <button
-            onClick={() => fetchBooks(currentPage + 1, true)}
+            onClick={() => setSize(size + 1)}
             className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
           >
             Load more
@@ -281,7 +320,7 @@ export default function ExpenseBookList({ onSelectBook, refreshTrigger }: Expens
           book={editBook}
           onClose={() => setEditBook(null)}
           onSuccess={(updated) => {
-            fetchBooks(1, false);
+            mutate();
             setEditBook(null);
           }}
         />,

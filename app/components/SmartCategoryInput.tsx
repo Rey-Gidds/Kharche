@@ -22,15 +22,30 @@ export default function SmartCategoryInput({
 }: SmartCategoryInputProps) {
   const [focused, setFocused] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [debouncedValue, setDebouncedValue] = useState("");
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const activeRequest = useRef<AbortController | null>(null);
 
   // Fetch top 10 categories for instant suggestion display
-  const { data: topCategories, mutate: mutateTopCategories } = useSWR<any[]>(
+  const { data: topCategories } = useSWR<{ displayName: string; normalizedName: string }[]>(
     "/api/categories",
+    fetcher,
+    { revalidateOnFocus: false }
+  );
+
+  // Debounce the search value — SWR handles dedup & caching automatically
+  useEffect(() => {
+    if (value.trim().length < 2) {
+      setDebouncedValue("");
+      return;
+    }
+    const timer = setTimeout(() => setDebouncedValue(value.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [value]);
+
+  // SWR handles the search request with automatic dedup, caching, and revalidation
+  const { data: searchResults, isValidating: searchLoading } = useSWR<{ displayName: string; normalizedName: string }[]>(
+    debouncedValue ? `/api/categories?q=${encodeURIComponent(debouncedValue)}` : null,
     fetcher,
     { revalidateOnFocus: false }
   );
@@ -45,51 +60,6 @@ export default function SmartCategoryInput({
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, []);
-
-  // Debounced prefix-regex search while typing
-  useEffect(() => {
-    if (value.trim().length < 2) {
-      setSearchResults([]);
-      setSearchLoading(false);
-      return;
-    }
-
-    setSearchLoading(true);
-
-    const timer = setTimeout(async () => {
-      // Cancel previous stale request if user is still typing
-      if (activeRequest.current) {
-        activeRequest.current.abort();
-      }
-
-      const controller = new AbortController();
-      activeRequest.current = controller;
-
-      try {
-        const res = await fetch(`/api/categories?q=${encodeURIComponent(value)}`, {
-          signal: controller.signal,
-        });
-        if (!res.ok) throw new Error("Search failed");
-        const data = await res.json();
-        setSearchResults(data);
-      } catch (err: any) {
-        if (err.name !== "AbortError") {
-          console.error(err);
-        }
-      } finally {
-        if (activeRequest.current === controller) {
-          setSearchLoading(false);
-        }
-      }
-    }, 300); // 300ms debounce
-
-    return () => {
-      clearTimeout(timer);
-      if (activeRequest.current) {
-        activeRequest.current.abort();
-      }
-    };
-  }, [value]);
 
   return (
     <div ref={containerRef} className="relative w-full font-inter">
@@ -126,10 +96,10 @@ export default function SmartCategoryInput({
           {value.trim().length >= 2 ? (
             <div>
               <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider mb-2">
-                {searchLoading ? "Searching..." : searchResults.length > 0 ? "Matching Categories" : "No Matches Found"}
+                {searchLoading ? "Searching..." : searchResults && searchResults.length > 0 ? "Matching Categories" : "No Matches Found"}
               </p>
               
-              {searchResults.length > 0 ? (
+              {searchResults && searchResults.length > 0 ? (
                 <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto no-scrollbar">
                   {searchResults.map((cat) => (
                     <button
@@ -206,7 +176,7 @@ function BrowseCategoriesModal({ onSelect, onClose }: BrowseModalProps) {
   const [search, setSearch] = useState("");
   
   // Fetch ALL categories for the history modal list
-  const { data: allCategories } = useSWR<any[]>(
+  const { data: allCategories } = useSWR<{ displayName: string; normalizedName: string; usageCount: number }[]>(
     "/api/categories?all=true",
     fetcher
   );

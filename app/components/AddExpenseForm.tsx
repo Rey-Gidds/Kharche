@@ -1,14 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useExpenses } from "@/context/ExpenseContext";
+import { useSWRConfig } from "swr";
 import { useNotification } from "@/context/NotificationContext";
-import { supportedCurrencies, convertCurrency, THRESHOLD_INR } from "@/utils/currencyConverter";
+import { supportedCurrencies, convertCurrency, MINIMUM_BALANCE_USD } from "@/utils/currencyConverter";
 import { useSession } from "@/lib/auth-client";
 import { useWallet } from "@/context/WalletContext";
+import { useExpenses } from "@/context/ExpenseContext";
 import ErrorMessage from "./ErrorMessage";
 import { useRouter } from "next/navigation";
 import SmartCategoryInput from "./SmartCategoryInput";
+import { encryptExpensePayload } from "@/crypto/services/payloadEncryption.service";
+import { getMasterKey } from "@/crypto/indexeddb/cacheManager";
 
 const CATEGORY_LIMIT = 20;
 const DESCRIPTION_LIMIT = 100;
@@ -22,6 +25,7 @@ interface AddExpenseFormProps {
 
 export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddExpenseFormProps) {
   const { walletBalance, walletCurrency, refetchWallet } = useWallet();
+  const { decryptExpenses } = useExpenses();
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(bookCurrency || walletCurrency);
   const [category, setCategory] = useState("Food");
@@ -30,27 +34,32 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const { expenses, setExpenses, fetchExpenses } = useExpenses();
+  const { mutate } = useSWRConfig();
   const { showNotification } = useNotification();
   const { data: session } = useSession();
   const router = useRouter();
 
-  let costInWalletCurrency = 0;
-  if (currency != walletCurrency){
-    costInWalletCurrency = amount ? convertCurrency(Number(amount), currency, walletCurrency) : 0;
-  } else {
-    costInWalletCurrency = Number(amount);
-  }
+  const rawConversion = amount && currency !== walletCurrency
+    ? convertCurrency(Number(amount), currency, walletCurrency)
+    : Number(amount);
+  const rawThreshold = convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency);
+  const ratesUnavailable = (currency !== walletCurrency && rawConversion === null) || rawThreshold === null;
+
+  const costInWalletCurrency = rawConversion === null ? 0 : rawConversion;
   const projectedBalance = walletBalance - costInWalletCurrency;
-  
-  // Threshold logic
-  const thresholdInWalletCurrency = convertCurrency(THRESHOLD_INR, "INR", walletCurrency);
-  const isBelowThreshold = projectedBalance < thresholdInWalletCurrency && !!amount;
+  const thresholdInWalletCurrency = rawThreshold === null ? 0 : rawThreshold;
+  const isBelowThreshold = !ratesUnavailable && projectedBalance < thresholdInWalletCurrency && !!amount;
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    if (ratesUnavailable) {
+      showNotification("Exchange rates unavailable. Please try again.", "error");
+      setLoading(false);
+      return;
+    }
 
     if (isBelowThreshold) {
       const msg = `Insufficient balance. Minimum threshold is ${thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${walletCurrency}.`;
@@ -90,65 +99,77 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
       return;
     }
 
-    const previousExpenses = [...expenses];
-    const optimisticExpense = {
-      _id: `temp-${Date.now()}`,
-      amount: finalAmount,
-      currency,
-      category: finalCategory,
-      description,
-      date,
-      bookId,
-      createdAt: new Date().toISOString(),
-    };
-
-    // Optimistic add
-    setExpenses([optimisticExpense, ...expenses]);
-
     try {
+      const masterKey = getMasterKey();
+      if (!masterKey) throw new Error("Encryption key not available");
+      let body: Record<string, any> = {
+        amount: finalAmount,
+        currency,
+        category: finalCategory,
+        date,
+        bookId,
+      };
+
+      const { encryptedDescription, encryptionVersion } = await encryptExpensePayload(
+        { description },
+        masterKey,
+      );
+      body.encryptedDescription = encryptedDescription;
+      body.encryptionVersion = encryptionVersion;
+
+      // 1. Do the fetch FIRST — no optimistic update, just persist to server
       const response = await fetch("/api/expenses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          amount: finalAmount, 
-          currency, 
-          category: finalCategory, 
-          description, 
-          date,
-          bookId
-        }),
+        body: JSON.stringify(body),
       });
 
-      if (response.ok) {
-        setAmount("");
-        setCurrency(bookCurrency || walletCurrency);
-        setCategory("Food");
-        setCustomCategory("");
-        setDescription("");
-        showNotification("Expense added successfully", "success");
-        
-        // Refetch wallet balance after adding expense
-        refetchWallet(session?.user);
-        
-        // Re-fetch to get real ID and sync (avoid double fetching when onSuccess handles the parent state updates)
-        if (!onSuccess) {
-          fetchExpenses();
-        } else {
-          onSuccess();
-        }
-      } else {
-        // Rollback
-        setExpenses(previousExpenses);
+      if (!response.ok) {
         const data = await response.json();
-        const errorMsg = data.error || "Failed to add expense";
-        setError(errorMsg);
-        showNotification(errorMsg, "error");
+        throw new Error(data.error || "Failed to add expense");
       }
-    } catch (error) {
-      // Rollback
-      setExpenses(previousExpenses);
-      setError("An error occurred. Please try again.");
-      showNotification("An error occurred. Please try again.", "error");
+
+      const serverExpense = await response.json();
+      // Decrypt the response so we can place it into the cache
+      const decryptedList = await decryptExpenses([serverExpense]);
+      const persistedItem = decryptedList[0];
+
+      // 2. THEN update the cache with the server-confirmed data
+      await mutate(
+        (key) => typeof key === "string" && key.startsWith("/api/expenses"),
+        (currentPages: any) => {
+          // Guard: only update useSWRInfinite caches (arrays of page objects).
+          // Plain useSWR caches like InsightsView's /api/expenses?... are not arrays — skip them.
+          if (!Array.isArray(currentPages)) return currentPages;
+          return currentPages.map((page, idx) => {
+            if (idx === 0) {
+              return {
+                ...page,
+                data: [persistedItem, ...page.data],
+              };
+            }
+            return page;
+          });
+        },
+        {
+          revalidate: true,
+          populateCache: true,
+        }
+      );
+
+      // Reset form on success
+      setAmount("");
+      setCurrency(bookCurrency || walletCurrency);
+      setCategory("Food");
+      setCustomCategory("");
+      setDescription("");
+
+      showNotification("Expense added successfully", "success");
+      refetchWallet();
+      if (onSuccess) onSuccess();
+    } catch (err: any) {
+      setError(err.message || "An error occurred. Please try again.");
+      showNotification(err.message || "An error occurred. Please try again.", "error");
     } finally {
       setLoading(false);
     }
@@ -212,7 +233,12 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
                   }
                 </select>
               </div>
-              {amount && (
+              {amount && ratesUnavailable && (
+                <div className="text-[10px] text-amber-500 font-bold uppercase tracking-tight mt-1">
+                  Exchange rates loading — balance estimate unavailable
+                </div>
+              )}
+              {amount && !ratesUnavailable && (
                 <div className={`text-[10px] font-bold uppercase tracking-tight mt-1 transition-colors ${isBelowThreshold ? 'text-rose-500' : 'text-emerald-500'}`}>
                   Est. Balance after: {Math.max(0, projectedBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency}
                   {isBelowThreshold && ` (Below ${thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} threshold)`}
@@ -272,7 +298,15 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
         </div>
 
         <div className="pt-4 border-t border-[var(--border)] mt-auto shrink-0 bg-[var(--surface)]">
-          {isBelowThreshold ? (
+          {ratesUnavailable ? (
+            <button
+              type="button"
+              disabled
+              className="w-full py-3.5 bg-gray-400 text-white font-bold text-xs uppercase tracking-widest rounded-lg cursor-not-allowed shadow-sm"
+            >
+              Exchange rates loading...
+            </button>
+          ) : isBelowThreshold ? (
             <button
               type="button"
               onClick={() => router.push('/me/wallet')}

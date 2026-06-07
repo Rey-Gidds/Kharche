@@ -15,6 +15,7 @@ interface ExpenseDrawerProps {
   estimatedBalance: number;
   isBelow: boolean;
   threshold: number;
+  ratesUnavailable: boolean;
   walletCurrency: string;
   originalExpense: any;
 }
@@ -146,6 +147,7 @@ export default function ExpenseDrawer({
   estimatedBalance,
   isBelow,
   threshold,
+  ratesUnavailable,
   walletCurrency,
   originalExpense
 }: ExpenseDrawerProps) {
@@ -246,7 +248,12 @@ export default function ExpenseDrawer({
             </div>
 
             {/* Sleek Est Balance Lookup */}
-            {drawerData.mode === "edit" && editForm && originalExpense && (
+            {drawerData.mode === "edit" && editForm && originalExpense && ratesUnavailable && (
+              <div className="text-[10px] text-amber-500 font-bold uppercase tracking-tight mt-[-16px]">
+                Exchange rates unavailable — estimated balance may be inaccurate.
+              </div>
+            )}
+            {drawerData.mode === "edit" && editForm && originalExpense && !ratesUnavailable && (
               <div className={`text-[10px] font-bold uppercase tracking-tight mt-[-16px] transition-colors ${isBelow ? 'text-rose-500' : 'text-emerald-500'}`}>
                 Est. Balance after: {Math.max(0, estimatedBalance).toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency}
                 {isBelow && ` (Below ${threshold.toLocaleString(undefined, { maximumFractionDigits: 2 })} threshold)`}
@@ -278,7 +285,14 @@ export default function ExpenseDrawer({
               />
             </div>
             <div className="pt-4 flex gap-3">
-              {isBelow ? (
+              {ratesUnavailable ? (
+                <button 
+                  disabled
+                  className="flex-1 bg-gray-400 text-white rounded py-3 font-bold text-sm cursor-not-allowed shadow-sm"
+                >
+                  Rates Loading...
+                </button>
+              ) : isBelow ? (
                 <button 
                   onClick={() => router.push('/me/wallet')}
                   className="flex-1 bg-rose-500 text-white rounded py-3 font-bold text-sm cursor-pointer hover:opacity-90 shadow-sm"

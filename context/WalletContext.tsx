@@ -1,15 +1,22 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext } from "react";
 import { useSession } from "@/lib/auth-client";
 import { useNotification } from "./NotificationContext";
+import useSWR from "swr";
+
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch wallet balance");
+  return res.json();
+};
 
 interface WalletContextType {
     walletBalance: number;
     walletCurrency: string;
     loading: boolean;
     error: string | null;
-    refetchWallet: (user?: any, silent?: boolean) => Promise<void>;
+    refetchWallet: () => void;
     setWalletDefaultCurrency: (currency: string) => Promise<void>;
 }
 
@@ -17,40 +24,23 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 const currencyAllowed = ["USD", "INR", "CNY", "EUR", "GBP", "JPY"];
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-    const [walletBalance, setWalletBalance] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [walletCurrency, setWalletCurrency] = useState("INR");
     const { showNotification } = useNotification();
     const session = useSession();
+    const userId = session.data?.user?.id;
 
-    const fetchWallet = async (userParam?: any, silent = false) => {
-        const user = userParam || session.data?.user;
-        
-        if (!user?.id) {
-            setLoading(false);
-            return;
+    const { data, error, isLoading, mutate } = useSWR(
+        userId ? "/api/user/wallet" : null,
+        fetcher,
+        {
+            revalidateOnFocus: true,
+            revalidateOnReconnect: true,
+            onError: (err) => showNotification(err.message, "error"),
         }
+    );
 
-        if (!silent) setLoading(true);
-        setError(null);
-
-        try {
-            // Fetch balance from dedicated wallet API
-            const balanceRes = await fetch("/api/user/wallet");
-            if (!balanceRes.ok) throw new Error("Failed to fetch wallet balance");
-            const balanceData = await balanceRes.json();
-            
-            // Currency is still in the session/user object, which is fine as it changes rarely
-            setWalletBalance(balanceData.walletBalance || 0);
-            setWalletCurrency(user?.currency || "INR");
-        } catch (err: any) {
-            setError(err.message);
-            showNotification(err.message, "error");
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    };
+    const walletBalance = data?.walletBalance ?? 0;
+    const walletCurrency = (session.data?.user as any)?.currency || "INR";
+    const loading = isLoading && !data;
 
     const setWalletDefaultCurrency = async (currency: string) => {
         try {
@@ -61,34 +51,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 body: JSON.stringify({ currency }),
             });
             if (!res.ok) throw new Error("Failed to set wallet default currency");
-            setWalletCurrency(currency);
+            await mutate(); // Re-fetch wallet data after currency change
         } catch (err: any) {
-            setError(err.message);
             showNotification(err.message, "error");
         }
     };
-
-    useEffect(() => {
-        if (session.data?.user) {
-            fetchWallet(session.data?.user);
-        } else if (!session.isPending) {
-            setLoading(false);
-        }
-    }, [session?.data?.user?.id, session?.isPending]);
 
     return (
         <WalletContext.Provider value={{ 
             walletBalance, 
             walletCurrency,
-            loading: loading && walletBalance === 0, // Only show loading if we don't have a balance yet
-            error, 
-            /**
-             * Refetches the wallet balance.
-             * @param user The user object (optional, defaults to session user).
-             * @param silent If true, does not set loading state to true during fetch. Defaults to true.
-             */
-            refetchWallet: (user?: any, silent?: boolean) => fetchWallet(user, silent ?? true), // Default to silent for manual refetches
-            setWalletDefaultCurrency: (currency: string) => setWalletDefaultCurrency(currency)
+            loading,
+            error: error?.message ?? null,
+            refetchWallet: () => mutate(),
+            setWalletDefaultCurrency,
         }}>
             {children}
         </WalletContext.Provider>
@@ -102,5 +78,3 @@ export function useWallet() {
     }
     return context;
 }
-
-

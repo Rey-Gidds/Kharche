@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Wallet, Plus, Globe } from "lucide-react";
 import Link from "next/link";
 import { useWallet } from "@/context/WalletContext";
-import { supportedCurrencies, convertCurrency } from "@/utils/currencyConverter";
+import { supportedCurrencies, convertCurrency, MINIMUM_BALANCE_USD } from "@/utils/currencyConverter";
 import FullScreenLoader from "@/app/components/FullScreenLoader";
 
 export default function WalletPage() {
@@ -18,7 +18,9 @@ export default function WalletPage() {
     const router = useRouter();
 
     const { walletBalance, walletCurrency, refetchWallet, setWalletDefaultCurrency } = useWallet();
-    const thresholdInWalletCurrency = convertCurrency(1000, "INR", walletCurrency);
+    const rawThreshold = convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency);
+    const thresholdInWalletCurrency = rawThreshold ?? 0;
+    const ratesUnavailable = rawThreshold === null;
 
     if (isPending) {
         return <FullScreenLoader />;
@@ -115,7 +117,13 @@ export default function WalletPage() {
                                     </div>
                                 </div>
                             </div>
-                            <p className="text-xs text-[var(--muted)] mt-4 md:mt-2 italic">* Minimum threshold of {thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency} ({ (83).toLocaleString() } INR equivalent) required for expenses.</p>
+                            {ratesUnavailable ? (
+                              <p className="text-xs text-amber-500 mt-4 md:mt-2 italic">
+                                * Exchange rates loading — minimum threshold display unavailable.
+                              </p>
+                            ) : (
+                              <p className="text-xs text-[var(--muted)] mt-4 md:mt-2 italic">* Minimum threshold of {thresholdInWalletCurrency.toLocaleString(undefined, { maximumFractionDigits: 2 })} {walletCurrency} (${MINIMUM_BALANCE_USD} USD equivalent) required for expenses.</p>
+                            )}
                         </div>
                     </div>
 

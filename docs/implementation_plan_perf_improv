@@ -1,0 +1,78 @@
+# Fix SWR Updates Delay & Remove Encrypted Amount from Expenses
+
+This plan addresses:
+1. Instant SWR update propagation in Room Tickets (when adding, updating, or deleting).
+2. Removal of `encryptedAmount` from the `Expense` model and encryption flows.
+3. Suggesting which fields can/should be encrypted for E2E security in an expense tracker.
+
+## User Review Required
+
+### Suggested Encryption Fields: Can vs. Should
+
+We recommend the following security strategy regarding field encryption:
+
+1. **Keep Plaintext (No Encryption)**:
+   - **Amount & Currency**: Required by the server for threshold validations (e.g., wallet limits), database aggregations (e.g., charts, total spent), currency conversions, split-calculation engine, and sorting.
+   - **Category**: Necessary for server-side category-based filtering.
+   - **Date**: Essential for server-side sorting and date-range queries.
+
+2. **Always Encrypt (Currently Implemented)**:
+   - **Description**: Contains high-sensitivity context (e.g., doctor names, specific personal items).
+   - **Title (ExpenseBooks / RoomTickets)**: High-sensitivity text describing groups of expenses or individual room expenses.
+   - **Room Name**: Can contain specific naming of personal circles.
+
+3. **Optional (Could be Encrypted)**:
+   - **Custom Category Names**: If a user creates custom categories, their names can be sensitive. We could store category display names encrypted, but it would limit autocomplete/prefix searches across users.
+
+---
+
+## Proposed Changes
+
+### 1. Fix SWR Update Quickness (Stale State)
+
+#### [MODIFY] [RoomTickets.tsx](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/app/components/rooms/RoomTickets.tsx)
+- Replace SWR-based decryption of page-1 tickets (`page1Decrypted` via SWR) with a React `useEffect` that listens directly to `swrData` changes. This bypasses SWR's 30-second deduplication cache, ensuring that whenever page-1 raw tickets are updated or revalidated, the decrypted list is immediately re-evaluated.
+- Fix global key invalidation inside `handleDelete` to support array/tuple keys.
+
+#### [MODIFY] [AddTicketModal.tsx](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/app/components/rooms/AddTicketModal.tsx)
+- Update the SWR `mutate` match filter function to handle both array keys (tuple key `[url, hasKey]`) and string keys. This ensures that the tickets list revalidates immediately when a new ticket is added or updated.
+
+#### [MODIFY] [SettleModal.tsx](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/app/components/rooms/SettleModal.tsx)
+- Update the SWR `mutate` call to use the same array-aware matcher to ensure that settlement tickets show up instantly in the ticket list.
+
+---
+
+### 2. Remove `encryptedAmount` from Expenses
+
+#### [MODIFY] [Expense.ts](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/models/Expense.ts)
+- Remove `encryptedAmount` from interface `IExpense` and `ExpenseSchema`.
+
+#### [MODIFY] [payloadEncryption.service.ts](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/crypto/services/payloadEncryption.service.ts)
+- Modify `ExpensePayload` to exclude `amount`.
+- Update `encryptExpensePayload` and `decryptExpensePayload` to no longer encrypt/decrypt `amount`.
+
+#### [MODIFY] [useExpenseDrawer.ts](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/app/hooks/useExpenseDrawer.ts)
+- Update call to `encryptExpensePayload` to only pass the description.
+- Remove `encryptedAmount` assignments.
+
+#### [MODIFY] [AddExpenseForm.tsx](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/app/components/AddExpenseForm.tsx)
+- Update call to `encryptExpensePayload` to only pass the description.
+- Remove `encryptedAmount` assignments.
+
+#### [MODIFY] [route.ts](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/app/api/expenses/route.ts)
+- Remove `encryptedAmount` from POST request extraction, validation, and database storage.
+
+#### [MODIFY] [route.ts](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/app/api/expenses/[id]/route.ts)
+- Remove `encryptedAmount` from PUT request extraction, validation, and database storage.
+
+#### [MODIFY] [ExpenseContext.tsx](file:///c:/Users/REYANSH/OneDrive/Desktop/EXP_NEXT/expense_tracker/context/ExpenseContext.tsx)
+- Update `decryptExpenses` to check `exp.encryptedDescription` instead of `exp.encryptedAmount`.
+
+---
+
+## Verification Plan
+
+### Manual Verification
+- Run local dev server: `npm run dev`
+- Create a new ticket, edit it, and delete it in a room, ensuring the updates reflect immediately without delay or reload.
+- Create an expense with encryption ON, and verify in the DB (or via app UI) that description is encrypted but amount is saved as plaintext.
