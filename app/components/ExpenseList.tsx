@@ -43,7 +43,7 @@ interface ExpenseListProps {
 
 export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }: ExpenseListProps) {
   const { updateExpense, decryptExpenses } = useExpenses();
-  const { refetchWallet, walletBalance, walletCurrency } = useWallet();
+  const { refetchWallet, walletBalance, walletCurrency, ratesStatus } = useWallet();
   const { data: session } = useSession();
   const { showNotification } = useNotification();
   const ratesNotifiedRef = useRef(false);
@@ -121,16 +121,17 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }:
   useEffect(() => {
     const needsConversion = expenses.some(e => e.currency !== displayCurrency);
     if (!needsConversion) return;
-    const failed = expenses.some(e =>
+    if (ratesStatus === "loading") return;
+    const ratesFailed = ratesStatus === "error" || expenses.some(e =>
       e.currency !== displayCurrency &&
       convertCurrency(e.amount, e.currency || "USD", displayCurrency) === null
     );
-    if (failed && !ratesNotifiedRef.current) {
+    if (ratesFailed && !ratesNotifiedRef.current) {
       showNotification("Exchange rates unavailable — some amounts shown in original currency.", "warning");
       ratesNotifiedRef.current = true;
     }
-    if (!failed) ratesNotifiedRef.current = false;
-  }, [displayCurrency, expenses, showNotification]);
+    if (!ratesFailed) ratesNotifiedRef.current = false;
+  }, [displayCurrency, expenses, showNotification, ratesStatus]);
 
   const {
     activeMenu,
@@ -157,7 +158,8 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }:
     editForm,
     drawerData?.mode,
     walletBalance,
-    walletCurrency
+    walletCurrency,
+    ratesStatus
   );
 
   const activeFiltersCount =

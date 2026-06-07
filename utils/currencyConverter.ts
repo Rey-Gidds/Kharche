@@ -14,7 +14,7 @@ export async function fetchExchangeRates(): Promise<Record<string, number>> {
   if (cachedRates && Date.now() - lastFetched < CACHE_TTL) {
     return cachedRates!;
   }
-  const response = await fetch("https://api.frankfurter.dev/latest?from=USD");
+  const response = await fetch("https://api.frankfurter.dev/latest?from=USD&to=INR,CNY,EUR,GBP,JPY");
   if (!response.ok) throw new Error(`Exchange rate API returned ${response.status}`);
   const data = await response.json();
   cachedRates = { USD: 1, ...data.rates };

@@ -17,10 +17,10 @@ export default function WalletPage() {
 	const [isAdding, setIsAdding] = useState(false);
     const router = useRouter();
 
-    const { walletBalance, walletCurrency, refetchWallet, setWalletDefaultCurrency } = useWallet();
-    const rawThreshold = convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency);
+    const { walletBalance, walletCurrency, refetchWallet, setWalletDefaultCurrency, ratesStatus } = useWallet();
+    const rawThreshold = ratesStatus === "loaded" ? convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency) : null;
     const thresholdInWalletCurrency = rawThreshold ?? 0;
-    const ratesUnavailable = rawThreshold === null;
+    const ratesUnavailable = ratesStatus !== "loaded";
 
     if (isPending) {
         return <FullScreenLoader />;

@@ -6,8 +6,12 @@ export function useEstimatedBalance(
   editForm: any,
   drawerDataMode: string | undefined,
   walletBalance: number,
-  walletCurrency: string
+  walletCurrency: string,
+  ratesStatus: "loading" | "loaded" | "error"
 ) {
+  if (ratesStatus !== "loaded") {
+    return { estimatedBalance: 0, isBelow: false, threshold: 0, ratesUnavailable: true };
+  }
   if (!originalExpense || !editForm || drawerDataMode !== "edit") {
     return { estimatedBalance: 0, isBelow: false, threshold: 0, ratesUnavailable: false };
   }

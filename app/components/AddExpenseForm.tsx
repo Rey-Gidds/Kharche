@@ -24,7 +24,7 @@ interface AddExpenseFormProps {
 }
 
 export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddExpenseFormProps) {
-  const { walletBalance, walletCurrency, refetchWallet } = useWallet();
+  const { walletBalance, walletCurrency, refetchWallet, ratesStatus } = useWallet();
   const { decryptExpenses } = useExpenses();
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(bookCurrency || walletCurrency);
@@ -42,8 +42,8 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
   const rawConversion = amount && currency !== walletCurrency
     ? convertCurrency(Number(amount), currency, walletCurrency)
     : Number(amount);
-  const rawThreshold = convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency);
-  const ratesUnavailable = (currency !== walletCurrency && rawConversion === null) || rawThreshold === null;
+  const rawThreshold = ratesStatus === "loaded" ? convertCurrency(MINIMUM_BALANCE_USD, "USD", walletCurrency) : null;
+  const ratesUnavailable = ratesStatus !== "loaded";
 
   const costInWalletCurrency = rawConversion === null ? 0 : rawConversion;
   const projectedBalance = walletBalance - costInWalletCurrency;
