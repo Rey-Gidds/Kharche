@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getCachedSession } from "@/lib/cachedSession";
+﻿import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
 import { headers } from "next/headers";
 import { UserEncryption } from "@/models/UserEncryption";
 import { User } from "@/models/User";
@@ -7,7 +7,7 @@ import connectDB from "@/lib/db";
 
 export async function GET() {
   try {
-    const session = await getCachedSession(await headers());
+    const session = await getSession(await headers());
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }

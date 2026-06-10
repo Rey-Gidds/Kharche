@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getCachedSession } from "@/lib/cachedSession";
+﻿import { NextResponse } from "next/server";
+import { getSession } from "@/lib/session";
 import { headers } from "next/headers";
 import Expense from "@/models/Expense";
 import ExpenseBook from "@/models/ExpenseBook";
@@ -14,7 +14,7 @@ import connectDB from "@/lib/db";
  * Body: { expenses?, expenseBooks?, rooms?, roomTickets? }
  */
 export async function POST(req: Request) {
-  const session = await getCachedSession(await headers());
+  const session = await getSession(await headers());
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

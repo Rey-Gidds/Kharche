@@ -1,4 +1,4 @@
-import { getCachedSession } from "@/lib/cachedSession";
+import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomKeyAccess from "@/models/RoomKeyAccess";
@@ -17,7 +17,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
-  const session = await getCachedSession(await headers());
+  const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {

@@ -1,12 +1,11 @@
-import { auth } from "@/lib/auth";
-import { getCachedSession } from "@/lib/cachedSession";
+import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import ExpenseBook from "@/models/ExpenseBook";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
-    const session = await getCachedSession(await headers());
+    const session = await getSession(await headers());
 
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -43,7 +42,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-    const session = await getCachedSession(await headers());
+    const session = await getSession(await headers());
 
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

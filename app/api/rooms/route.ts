@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
-import { getCachedSession } from "@/lib/cachedSession";
+﻿import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomBook from "@/models/RoomBook";
@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 
 /** POST /api/rooms — Create a new room. Creator automatically joins as ACTIVE. */
 export async function POST(req: Request) {
-  const session = await getCachedSession(await headers());
+  const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
@@ -93,23 +93,21 @@ export async function POST(req: Request) {
 
 /** GET /api/rooms — List all rooms the current user belongs to */
 export async function GET() {
-  const session = await getCachedSession(await headers());
+  const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     await connectDB();
-    const user = await User.findById(session.user.id).lean();
+    const [user] = await Promise.all([
+      User.findById(session.user.id).lean(),
+    ]);
+
+    const [rooms, stats] = await Promise.all([
+      Room.find({ _id: { $in: user.rooms } }).populate("users", "name email image").lean(),
+      RoomStats.find({ roomId: { $in: user.rooms }, userId: session.user.id }).lean()
+    ]);
+
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
-
-    const rooms = await Room.find({ _id: { $in: user.rooms } })
-      .populate("users", "name email image")
-      .lean();
-
-    // Attach the current user's net balance for each room
-    const stats = await RoomStats.find({
-      roomId: { $in: rooms.map((r) => r._id) },
-      userId: session.user.id,
-    }).lean();
 
     const statsMap = new Map(stats.map((s) => [s.roomId.toString(), s]));
 

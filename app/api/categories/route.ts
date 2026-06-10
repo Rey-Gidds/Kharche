@@ -1,4 +1,4 @@
-import { getCachedSession } from "@/lib/cachedSession";
+import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import CustomCategory from "@/models/CustomCategory";
 import { normalizeCategoryName } from "@/utils/normalizeCategory";
@@ -6,7 +6,7 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function GET(req: Request) {
-  const session = await getCachedSession(await headers());
+  const session = await getSession(await headers());
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

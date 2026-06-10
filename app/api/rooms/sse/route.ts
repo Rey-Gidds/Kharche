@@ -1,4 +1,4 @@
-import { getCachedSession } from "@/lib/cachedSession";
+﻿import { getSession } from "@/lib/session";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { roomEventBus, RoomEvent } from "@/lib/sse/roomEventBus";
@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const session = await getCachedSession(await headers());
+  const session = await getSession(await headers());
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

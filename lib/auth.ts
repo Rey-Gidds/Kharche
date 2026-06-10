@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
+import { nextCookies } from "better-auth/next-js";
 import { MongoClient } from "mongodb";
 import { sendEmail } from "./email";
 import dns from "dns";
@@ -42,7 +43,7 @@ export const db = client.db();
 
 export const auth = betterAuth({
     database: mongodbAdapter(db, {
-        transaction: true, // Recommended for local/standard MongoDB setups to prevent hangs
+        transaction: true,
     }),
     baseURL: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
     secret: process.env.BETTER_AUTH_SECRET,

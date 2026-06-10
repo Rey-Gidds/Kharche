@@ -1,4 +1,4 @@
-import { getCachedSession } from "@/lib/cachedSession";
+import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
 import { supportedCurrencies } from "@/utils/currencyConverter";
@@ -6,9 +6,9 @@ import { getServerExchangeRates } from "@/lib/exchangeRateCache";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-    
+
 export async function POST(req: Request) {
-    const session = await getCachedSession(await headers());
+    const session = await getSession(await headers());
 
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

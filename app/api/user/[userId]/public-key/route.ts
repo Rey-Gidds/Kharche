@@ -1,4 +1,4 @@
-import { getCachedSession } from "@/lib/cachedSession";
+﻿import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import UserEncryption from "@/models/UserEncryption";
 import { headers } from "next/headers";
@@ -13,7 +13,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ userId: string }> }
 ) {
-  const session = await getCachedSession(await headers());
+  const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {

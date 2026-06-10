@@ -1,4 +1,4 @@
-import { getCachedSession } from "@/lib/cachedSession";
+import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import Expense from "@/models/Expense";
 import User from "@/models/User";
@@ -12,7 +12,7 @@ export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const session = await getCachedSession(await headers());
+    const session = await getSession(await headers());
 
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -77,7 +77,7 @@ export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const session = await getCachedSession(await headers());
+    const session = await getSession(await headers());
 
     if (!session) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
