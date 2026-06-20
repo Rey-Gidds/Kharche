@@ -214,11 +214,6 @@ export async function tryAutoUnlock(userId: string): Promise<UnlockedKeys | null
   const record = await getDerivedKeys(userId);
   if (!record) return null;
 
-  if (isStale(record.cachedAt, DERIVED_KEY_CACHE_TTL)) {
-    await removeDerivedKeys(userId);
-    return null;
-  }
-
   try {
     const masterKeyRawBytes = base64urlToBuffer(record.masterKeyRaw);
     const masterKey = await importAesKeyRaw(masterKeyRawBytes, true);
@@ -336,19 +331,6 @@ export async function hydrateFromCache(userId: string): Promise<HydrationResult>
   const privateKeyRecord = await getCachedPrivateKey(userId);
 
   if (!masterKeyRecord || !privateKeyRecord) {
-    return {
-      hydrated: false,
-      userId: null,
-      encryptedMasterKey: null,
-      encryptedPrivateKey: null,
-      salt: null,
-    };
-  }
-
-  // Check staleness
-  if (isStale(masterKeyRecord.cachedAt, MASTER_KEY_CACHE_TTL)) {
-    await removeCachedMasterKey(userId);
-    await removeCachedPrivateKey(userId);
     return {
       hydrated: false,
       userId: null,
