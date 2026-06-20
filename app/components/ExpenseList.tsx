@@ -17,6 +17,8 @@ import { useEstimatedBalance } from "@/app/hooks/useEstimatedBalance";
 import { useNotification } from "@/context/NotificationContext";
 import BottomSheet from "./BottomSheet";
 import { SkeletonExpenseRow, SkeletonExpenseRowMobile } from "./Skeletons";
+import { onMasterKeyReady } from "@/crypto/indexeddb/cacheManager";
+
 
 const PAGE_SIZE = 20;
 const timezoneOffset = new Date().getTimezoneOffset();
@@ -110,6 +112,14 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }:
     fetcher,
     { revalidateFirstPage: true }
   );
+
+  // When encryption unlocks, re-fetch so decryptExpenses can use the new master key
+  useEffect(() => {
+    const unsub = onMasterKeyReady(() => {
+      mutate();
+    });
+    return unsub;
+  }, [mutate]);
 
   // Flatten paginated data
   const expenses = useMemo(() => data ? data.flatMap(page => page.data) : [], [data]);
