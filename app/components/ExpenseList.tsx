@@ -2,7 +2,6 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import useSWRInfinite from "swr/infinite";
 import useSWR from "swr";
 import { convertCurrency, supportedCurrencies } from "@/utils/currencyConverter";
 import { useExpenses } from "@/context/ExpenseContext";
@@ -46,7 +45,6 @@ interface ExpenseListProps {
 export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }: ExpenseListProps) {
   const { updateExpense, decryptExpenses } = useExpenses();
   const { refetchWallet, walletBalance, walletCurrency, ratesStatus } = useWallet();
-  const { data: session } = useSession();
   const { showNotification } = useNotification();
   const ratesNotifiedRef = useRef(false);
   const [sortBy, setSortBy] = useState("createdAt");
@@ -77,14 +75,18 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }:
   );
 
   // Build SWR key for paginated expenses
-  const getKey = useCallback((pageIndex: number, previousPageData: any) => {
-    if (previousPageData && !previousPageData.hasMore) return null;
-    const page = pageIndex + 1;
+  const [extraExpensesRaw, setExtraExpensesRaw] = useState<any[]>([]);
+  const [extraExpensesDecrypted, setExtraExpensesDecrypted] = useState<any[]>([]);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [manualHasMore, setManualHasMore] = useState<boolean | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const apiKey = useMemo(() => {
     const params = new URLSearchParams({
       sortBy,
       sort: sortOrder,
       category: categoryFilter,
-      page: String(page),
+      page: "1",
       limit: String(PAGE_SIZE),
       timezoneOffset: String(timezoneOffset),
     });
@@ -102,16 +104,66 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }:
     const result = await res.json();
     const rawData: any[] = Array.isArray(result) ? result : (result.data ?? []);
     const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
-    const returnedPage: number = Array.isArray(result) ? 1 : (result.page ?? 1);
     const decrypted = await decryptExpenses(rawData);
-    return { data: decrypted, hasMore: more, page: returnedPage };
+    return { data: decrypted, hasMore: more };
   }, [decryptExpenses]);
 
-  const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
-    getKey,
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    apiKey,
     fetcher,
-    { revalidateFirstPage: true }
+    { revalidateIfStale: true }
   );
+
+  useEffect(() => {
+    setExtraExpensesRaw([]);
+    setExtraExpensesDecrypted([]);
+    setManualHasMore(null);
+    setCurrentPage(1);
+  }, [bookId, sortBy, sortOrder, categoryFilter, dateFilterType, dateFilterValue]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const decrypted = await decryptExpenses(extraExpensesRaw);
+      if (!cancelled) setExtraExpensesDecrypted(decrypted);
+    })();
+    return () => { cancelled = true; };
+  }, [extraExpensesRaw, decryptExpenses]);
+
+  const fetchMore = async () => {
+    const nextPage = currentPage + 1;
+    setIsFetchingMore(true);
+    try {
+      const params = new URLSearchParams({
+        sortBy,
+        sort: sortOrder,
+        category: categoryFilter,
+        page: String(nextPage),
+        limit: String(PAGE_SIZE),
+        timezoneOffset: String(timezoneOffset),
+      });
+      if (bookId) params.set("bookId", bookId);
+      if (dateFilterType !== "all" && dateFilterValue) {
+        params.set("dateFilterType", dateFilterType);
+        params.set("dateFilterValue", dateFilterValue);
+      }
+      const res = await fetch(`/api/expenses?${params.toString()}`);
+      if (!res.ok) {
+        const result = await res.json().catch(() => ({}));
+        throw new Error(result.error || "Failed to load more expenses");
+      }
+      const result = await res.json();
+      const rawData: any[] = Array.isArray(result) ? result : (result.data ?? []);
+      const more: boolean = Array.isArray(result) ? false : (result.hasMore ?? false);
+      setExtraExpensesRaw((prev) => [...prev, ...rawData]);
+      setManualHasMore(more);
+      setCurrentPage(nextPage);
+    } catch (err: any) {
+      console.error("Load more failed:", err);
+    } finally {
+      setIsFetchingMore(false);
+    }
+  };
 
   // When encryption unlocks, re-fetch so decryptExpenses can use the new master key
   useEffect(() => {
@@ -122,10 +174,10 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }:
   }, [mutate]);
 
   // Flatten paginated data
-  const expenses = useMemo(() => data ? data.flatMap(page => page.data) : [], [data]);
+  const expenses = useMemo(() => [...(data?.data ?? []), ...extraExpensesDecrypted], [data, extraExpensesDecrypted]);
   const loading = isLoading && expenses.length === 0;
-  const loadingMore = isValidating && expenses.length > 0;
-  const hasMore = data ? data[data.length - 1]?.hasMore ?? false : false;
+  const loadingMore = isFetchingMore;
+  const hasMore = manualHasMore !== null ? manualHasMore : (data?.hasMore ?? false);
 
   // Notify once when exchange rates are unavailable for display conversion
   useEffect(() => {
@@ -457,7 +509,7 @@ export default function ExpenseList({ bookId, bookTitle, bookCurrency, onBack }:
       {hasMore && !loadingMore && (
         <div className="flex justify-center pt-1 pb-4">
           <button
-            onClick={() => setSize(size + 1)}
+            onClick={fetchMore}
             className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
           >
             Load more

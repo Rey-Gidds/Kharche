@@ -87,12 +87,15 @@ export function useExpenseDrawer(
 
         // 2. THEN update cache with server-confirmed data
         await mutate(
-          (currentPages: any[] | undefined) => {
-            if (!currentPages) return [];
-            return currentPages.map((page) => ({
-              ...page,
-              data: page.data.map((item: any) => (item._id === id ? persistedItem : item)),
-            }));
+          (currentData: any) => {
+            if (!currentData) return currentData;
+            if (Array.isArray(currentData)) {
+              return currentData;
+            }
+            return {
+              ...currentData,
+              data: currentData.data.map((item: any) => (item._id === id ? persistedItem : item)),
+            };
           },
           {
             revalidate: true,

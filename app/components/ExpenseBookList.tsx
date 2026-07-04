@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { createPortal } from "react-dom";
-import useSWRInfinite from "swr/infinite";
+import useSWR from "swr";
 import ExpenseBookCard from "./ExpenseBookCard";
 import { ActionMenuDrawer } from "./ExpenseDrawer";
 import { supportedCurrencies } from "@/utils/currencyConverter";
@@ -144,6 +144,11 @@ export default function ExpenseBookList({ onSelectBook }: ExpenseBookListProps) 
   const [mounted, setMounted] = useState(false);
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [editBook, setEditBook] = useState<ExpenseBook | null>(null);
+  const [extraBooksRaw, setExtraBooksRaw] = useState<any[]>([]);
+  const [extraBooksDecrypted, setExtraBooksDecrypted] = useState<any[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [manualHasMore, setManualHasMore] = useState<boolean | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const { processingIds, withProcessing } = useProcessing();
 
   useEffect(() => { setMounted(true); }, []);
@@ -170,11 +175,7 @@ export default function ExpenseBookList({ onSelectBook }: ExpenseBookListProps) 
     );
   }, []);
 
-  // SWR infinite key based on page index
-  const getKey = useCallback((pageIndex: number, previousPageData: any) => {
-    if (previousPageData && !previousPageData.hasMore) return null;
-    return `/api/expense-books?page=${pageIndex + 1}&limit=${PAGE_SIZE}`;
-  }, []);
+  const swrKey = `/api/expense-books?page=1&limit=${PAGE_SIZE}`;
 
   const fetcher = useCallback(async (url: string) => {
     const res = await fetch(url);
@@ -187,8 +188,8 @@ export default function ExpenseBookList({ onSelectBook }: ExpenseBookListProps) 
     return { data: decrypted, hasMore: more, page: returnedPage };
   }, [decryptBooks]);
 
-  const { data, error, isLoading, isValidating, size, setSize, mutate } = useSWRInfinite(
-    getKey,
+  const { data, error, isLoading, isValidating, mutate } = useSWR(
+    swrKey,
     fetcher,
     { revalidateOnFocus: false }
   );
@@ -201,11 +202,18 @@ export default function ExpenseBookList({ onSelectBook }: ExpenseBookListProps) 
     return unsub;
   }, [mutate]);
 
-  // Flatten paginated data
-  const books = data ? data.flatMap(page => page.data) : [];
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const decrypted = await decryptBooks(extraBooksRaw);
+      if (!cancelled) setExtraBooksDecrypted(decrypted);
+    })();
+    return () => { cancelled = true; };
+  }, [extraBooksRaw, decryptBooks]);
+
+  const books = [...(data?.data ?? []), ...extraBooksDecrypted];
   const loading = isLoading && books.length === 0;
-  const loadingMore = isValidating && books.length > 0;
-  const hasMore = data ? data[data.length - 1]?.hasMore ?? false : false;
+  const hasMore = manualHasMore !== null ? manualHasMore : (data?.hasMore ?? false);
 
   const handleDelete = async (bookId: string) => {
     if (!confirm("Delete this collection? All its tickets will also be removed.")) return;
@@ -223,6 +231,28 @@ export default function ExpenseBookList({ onSelectBook }: ExpenseBookListProps) 
         alert("Something went wrong.");
       }
     });
+  };
+
+  const fetchMore = async () => {
+    const nextPage = currentPage + 1;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/expense-books?page=${nextPage}&limit=${PAGE_SIZE}`);
+      if (!res.ok) {
+        const result = await res.json().catch(() => ({}));
+        throw new Error(result.error || "Failed to load more collections");
+      }
+      const result = await res.json();
+      const pageData: ExpenseBook[] = Array.isArray(result) ? result : (result.data ?? []);
+      const more = Array.isArray(result) ? false : (result.hasMore ?? false);
+      setExtraBooksRaw((prev) => [...prev, ...pageData]);
+      setManualHasMore(more);
+      setCurrentPage(nextPage);
+    } catch (err: any) {
+      console.error("Load more failed:", err);
+    } finally {
+      setLoadingMore(false);
+    }
   };
 
   const activeBook = books.find((b) => b._id === activeMenu);
@@ -284,7 +314,7 @@ export default function ExpenseBookList({ onSelectBook }: ExpenseBookListProps) 
       {hasMore && !loadingMore && (
         <div className="flex justify-center pt-4">
           <button
-            onClick={() => setSize(size + 1)}
+            onClick={fetchMore}
             className="text-xs font-semibold text-[var(--muted)] hover:text-[var(--foreground)] transition-colors cursor-pointer px-5 py-2 rounded-lg hover:bg-[var(--border)]/50"
           >
             Load more

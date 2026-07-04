@@ -28,9 +28,7 @@ import { bufferToBase64url, base64urlToBuffer } from "../utils/encoding";
 import { UnlockedKeys } from "../services/orchestrator";
 import { unlockWithPassphrase as deriveUnlockedKeys } from "../services/orchestrator";
 
-const MASTER_KEY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const ROOM_KEY_CACHE_TTL = 24 * 60 * 60 * 1000;   // 24 hours
-const DERIVED_KEY_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 const BROADCAST_CHANNEL_NAME = "kharche-encryption-sync";
 

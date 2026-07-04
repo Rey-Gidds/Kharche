@@ -137,26 +137,22 @@ export default function AddExpenseForm({ bookId, bookCurrency, onSuccess }: AddE
       // 2. THEN update the cache with the server-confirmed data
       await mutate(
         (key) => typeof key === "string" && key.startsWith("/api/expenses"),
-        (currentPages: any) => {
-          // Guard: only update useSWRInfinite caches (arrays of page objects).
-          // Plain useSWR caches like InsightsView's /api/expenses?... are not arrays — skip them.
-          if (!Array.isArray(currentPages)) return currentPages;
-          return currentPages.map((page, idx) => {
-            if (idx === 0) {
-              return {
-                ...page,
-                data: [persistedItem, ...page.data],
-              };
-            }
-            return page;
-          });
+        (currentData: any) => {
+          if (!currentData) return currentData;
+          if (Array.isArray(currentData)) {
+            return currentData;
+          }
+          return {
+            ...currentData,
+            data: [persistedItem, ...(currentData.data ?? [])],
+          };
         },
         {
           revalidate: true,
           populateCache: true,
         }
       );
-
+      
       // Reset form on success
       setAmount("");
       setCurrency(bookCurrency || walletCurrency);
