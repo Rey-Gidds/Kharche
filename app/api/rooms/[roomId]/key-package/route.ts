@@ -24,7 +24,7 @@ export async function POST(
     const { roomId } = await params;
     const { targetUserId, encryptedRoomKey, keyVersion } = await req.json();
 
-    if (!targetUserId || !encryptedRoomKey || !keyVersion) {
+    if (!targetUserId || !encryptedRoomKey || keyVersion === null || keyVersion === undefined) {
       return NextResponse.json({ error: "targetUserId, encryptedRoomKey, and keyVersion are required" }, { status: 400 });
     }
 

@@ -7,6 +7,9 @@ const WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS = 150; // 150 requests per minute
 
 async function handleRateLimit(request: NextRequest) {
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
+        return null;
+    }
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
     
     if (Math.random() < 0.1) {

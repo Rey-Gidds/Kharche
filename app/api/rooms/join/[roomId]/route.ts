@@ -65,7 +65,7 @@ export async function POST(
     if (creatorId) {
       roomEventBus.emit(creatorId, {
         type: "MEMBER_WAITING_FOR_KEY",
-        roomId,
+        roomId: roomId.toString(),
         userId: session.user.id,
         timestamp: Date.now(),
       });

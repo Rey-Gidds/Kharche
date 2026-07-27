@@ -19,6 +19,13 @@ export function useRoomSSE(options?: UseRoomSSEOptions): UseRoomSSEReturn {
   const retryRef = useRef(0);
   const eventSourceRef = useRef<EventSource | null>(null);
 
+  // Keep options in a ref so handlers always use the latest callbacks
+  // without causing the connection to be torn down and re-created on every render.
+  const optionsRef = useRef(options);
+  useEffect(() => {
+    optionsRef.current = options;
+  });
+
   const connect = useCallback(() => {
     if (eventSourceRef.current) return;
 
@@ -39,8 +46,8 @@ export function useRoomSSE(options?: UseRoomSSEOptions): UseRoomSSEReturn {
       try {
         const parsed: RoomEvent = JSON.parse(event.data);
         setLastEvent(parsed);
-        options?.onEvent?.(parsed);
-        options?.onEventType?.[parsed.type]?.(parsed);
+        optionsRef.current?.onEvent?.(parsed);
+        optionsRef.current?.onEventType?.[parsed.type]?.(parsed);
       } catch {
         // Ignore non-JSON events (keepalive, etc.)
       }
@@ -60,8 +67,8 @@ export function useRoomSSE(options?: UseRoomSSEOptions): UseRoomSSEReturn {
         try {
           const parsed: RoomEvent = JSON.parse(event.data);
           setLastEvent(parsed);
-          options?.onEvent?.(parsed);
-          options?.onEventType?.[parsed.type]?.(parsed);
+          optionsRef.current?.onEvent?.(parsed);
+          optionsRef.current?.onEventType?.[parsed.type]?.(parsed);
         } catch {
           // Ignore parse errors
         }
@@ -83,7 +90,7 @@ export function useRoomSSE(options?: UseRoomSSEOptions): UseRoomSSEReturn {
         }
       }, delay);
     };
-  }, [options]);
+  }, []); // stable — no deps needed since we read options via optionsRef
 
   useEffect(() => {
     connect();
