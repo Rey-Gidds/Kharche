@@ -10,6 +10,7 @@ import { WalletProvider } from "@/context/WalletContext";
 import { ProcessingProvider } from "@/context/ProcessingContext";
 import { SWRProvider } from "@/app/components/SWRProvider";
 import PwaRegistry from "@/app/components/PwaRegistry";
+import RoomActivationRunner from "@/app/components/RoomActivationRunner";
 
 const playfair = Playfair_Display({
   variable: "--font-playfair",
@@ -44,6 +45,7 @@ export default function RootLayout({
         <PwaRegistry />
         <SWRProvider>
           <NotificationProvider>
+            <RoomActivationRunner />
             <ProcessingProvider>
               <WalletProvider>
                 <ExpenseProvider>{children}</ExpenseProvider>

@@ -1,7 +1,8 @@
-﻿import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { roomEventBus, RoomEvent } from "@/lib/sse/roomEventBus";
+import { flushPendingDbEvents } from "@/lib/sse/flushPendingDbEvents";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,6 +25,9 @@ export async function GET() {
         const data = JSON.stringify(event);
         controller.enqueue(new TextEncoder().encode(`event: ${event.type}\ndata: ${data}\n\n`));
       });
+
+      // Flush any events the user missed while offline (DB-backed, no in-memory cache needed)
+      flushPendingDbEvents(userId, controller);
 
       // Heartbeat every 30s
       const heartbeat = setInterval(() => {

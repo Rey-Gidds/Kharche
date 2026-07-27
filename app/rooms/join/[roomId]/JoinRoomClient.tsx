@@ -45,6 +45,52 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
   const [joinError, setJoinError] = useState("");
   const [joined, setJoined] = useState(false);
   const [isPending, setIsPending] = useState(false);
+  const [activating, setActivating] = useState(false);
+
+  // On mount, check the current membership status so we handle the case
+  // where the creator approved while the joiner was completely offline.
+  useEffect(() => {
+    let cancelled = false;
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/api/rooms/${roomId}/members/status`);
+        if (!res.ok || cancelled) return;
+        const { status } = await res.json();
+        if (cancelled) return;
+
+        if (status === "ACTIVE") {
+          setJoined(true);
+        } else if (status === "KEY_AVAILABLE") {
+          // Key is waiting — activate immediately without user interaction
+          setActivating(true);
+          try {
+            const activateRes = await fetch(
+              `/api/rooms/${roomId}/members/activate`,
+              { method: "POST" }
+            );
+            if (!cancelled) {
+              if (activateRes.ok) {
+                setJoined(true);
+                setTimeout(() => router.push("/"), 1500);
+              } else {
+                const data = await activateRes.json();
+                setJoinError(data.error || "Failed to activate membership.");
+              }
+            }
+          } finally {
+            if (!cancelled) setActivating(false);
+          }
+        } else if (status === "KEY_EXCHANGE_PENDING") {
+          setIsPending(true);
+        }
+      } catch {
+        // Non-critical — fall back to normal join flow
+      }
+    };
+    checkStatus();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId]);
 
   useRoomSSE({
     onEventType: {
@@ -201,6 +247,14 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
                 </div>
                 <p className="font-bold text-[var(--foreground)]">You've joined {room?.name}!</p>
                 <p className="text-xs text-[var(--muted)]">Redirecting to dashboard...</p>
+              </div>
+            ) : activating ? (
+              <div className="space-y-4 text-center">
+                <div className="w-12 h-12 rounded-full border-2 border-[var(--border)] border-t-emerald-500 animate-spin flex items-center justify-center mx-auto" />
+                <div>
+                  <p className="font-bold text-[var(--foreground)]">Activating membership</p>
+                  <p className="text-xs text-[var(--muted)] mt-1">Your key is ready — joining now...</p>
+                </div>
               </div>
             ) : isPending ? (
               <div className="space-y-4 text-center">

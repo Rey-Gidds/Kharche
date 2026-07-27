@@ -3,6 +3,7 @@
 import { useState } from "react";
 import useSWR from "swr";
 import { useEncryption } from "@/hooks/useEncryption";
+import { useRoomSSE } from "@/hooks/useRoomSSE";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -35,8 +36,20 @@ export default function RoomPendingMembers({ roomId, activeKeyVersion }: { roomI
   const { data: pendingMembers, error, mutate } = useSWR(
     `/api/rooms/${roomId}/members/pending`,
     fetcher,
-    { refreshInterval: 10000 } // Check for new pending members every 10s
+    { refreshInterval: 10000 } // Fallback poll every 10s for offline-recovery
   );
+
+  // React instantly to SSE events so the creator sees new join requests
+  // in real time without waiting for the 10s poll interval.
+  useRoomSSE({
+    onEventType: {
+      MEMBER_WAITING_FOR_KEY: (event) => {
+        if (event.roomId === roomId) {
+          mutate();
+        }
+      },
+    },
+  });
 
   const [processing, setProcessing] = useState<Record<string, boolean>>({});
   const [opError, setOpError] = useState("");
