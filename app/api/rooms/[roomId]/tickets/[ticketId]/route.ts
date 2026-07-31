@@ -1,4 +1,4 @@
-﻿import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
@@ -33,6 +33,7 @@ export async function PUT(
     } catch {
       return NextResponse.json({ error: "Active membership required" }, { status: 403 });
     }
+
 
     const room = await Room.findById(roomId).lean();
     if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });

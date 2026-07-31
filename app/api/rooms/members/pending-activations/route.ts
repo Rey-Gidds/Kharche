@@ -5,6 +5,11 @@ import Room from "@/models/Room";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * GET /api/rooms/members/pending-activations
  * Returns all rooms where the calling user's membership is KEY_AVAILABLE.
@@ -17,7 +22,6 @@ export async function GET() {
   }
 
   try {
-    await connectDB();
 
     const pendingMemberships = await RoomMembership.find({
       userId: session.user.id,

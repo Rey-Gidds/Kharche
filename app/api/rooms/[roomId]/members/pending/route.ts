@@ -5,6 +5,11 @@ import User from "@/models/User";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * GET /api/rooms/[roomId]/members/pending
  * Lists KEY_EXCHANGE_PENDING members for a room. Only the creator can view.
@@ -18,7 +23,6 @@ export async function GET(
 
   try {
     const { roomId } = await params;
-    await connectDB();
 
     // Verify caller is an ACTIVE member (must be creator or someone who can distribute keys)
     const callerMembership = await RoomMembership.findOne({

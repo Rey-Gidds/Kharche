@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import AddTicketModal from "./AddTicketModal";
 import { ActionMenuDrawer } from "../ExpenseDrawer";
 import { useDraggableSheet } from "@/app/hooks/useDraggableSheet";
+import { useNewTicketHighlight } from "@/app/hooks/useNewTicketHighlight";
 import { useSWRConfig } from "swr";
 import useSWR from "swr";
 import { useWallet } from "@/context/WalletContext";
@@ -105,6 +106,7 @@ export default function RoomTickets({ room, currentUserId, roomKey }: RoomTicket
   const { mutate: globalMutate } = useSWRConfig();
   const { refetchWallet } = useWallet();
   const { processingIds, withProcessing } = useProcessing();
+  const { isNew, dismiss } = useNewTicketHighlight(room._id);
 
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [detailTicket, setDetailTicket] = useState<any | null>(null);
@@ -328,16 +330,22 @@ export default function RoomTickets({ room, currentUserId, roomKey }: RoomTicket
           const myEntry = ticket.distribution?.find(
             (d: any) => (d.userId?._id ?? d.userId)?.toString() === currentUserId
           );
+          const newHighlight = !isSettlement && isNew({ _id: ticket._id, createdAt: ticket.createdAt });
 
           return (
             <div
               key={ticket._id}
               className={`list-item-animate flex items-start gap-4 p-4 rounded-xl hover:bg-[var(--surface)] border cursor-pointer transition-all ${
-                isSettlement ? "border-emerald-500/20 bg-emerald-500/5" : "border-transparent hover:border-[var(--border)]"
+                isSettlement
+                  ? "border-emerald-500/20 bg-emerald-500/5"
+                  : newHighlight
+                  ? "border-2 border-white/80 bg-[var(--surface)]"
+                  : "border-transparent hover:border-[var(--border)]"
               } ${processingIds[ticket._id] ? "processing-ticket" : ""}`}
               style={{ animationDelay: `${i * 0.04}s` }}
               onClick={() => {
                 if (processingIds[ticket._id]) return;
+                if (newHighlight) dismiss(ticket._id);
                 setDetailTicket(ticket);
               }}
             >

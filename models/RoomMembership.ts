@@ -11,6 +11,7 @@ export interface IRoomMembership extends Document {
   invitedBy?: mongoose.Types.ObjectId;
   keyDeliveredAt?: Date;
   activatedAt?: Date;
+  lastVisitedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,6 +30,7 @@ const RoomMembershipSchema = new Schema<IRoomMembership>(
     invitedBy: { type: Schema.Types.ObjectId, ref: "User" },
     keyDeliveredAt: { type: Date },
     activatedAt: { type: Date },
+    lastVisitedAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );

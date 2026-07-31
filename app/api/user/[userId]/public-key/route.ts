@@ -1,4 +1,4 @@
-﻿import { getSession } from "@/lib/session";
+import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import UserEncryption from "@/models/UserEncryption";
 import { headers } from "next/headers";
@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 
 /**
  * GET /api/user/[userId]/public-key
- * Returns a user's RSA public key for room key distribution.
+ * Return user's public key for room key distribution.
  * Authenticated endpoint.
  */
 export async function GET(
@@ -30,3 +30,4 @@ export async function GET(
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+

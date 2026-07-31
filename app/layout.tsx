@@ -6,6 +6,7 @@ import "./globals.css";
 
 import { ExpenseProvider } from "@/context/ExpenseContext";
 import { NotificationProvider } from "@/context/NotificationContext";
+import { PushSubscriptionProvider } from "@/context/PushSubscriptionContext";
 import { WalletProvider } from "@/context/WalletContext";
 import { ProcessingProvider } from "@/context/ProcessingContext";
 import { SWRProvider } from "@/app/components/SWRProvider";
@@ -45,12 +46,14 @@ export default function RootLayout({
         <PwaRegistry />
         <SWRProvider>
           <NotificationProvider>
-            <RoomActivationRunner />
-            <ProcessingProvider>
-              <WalletProvider>
-                <ExpenseProvider>{children}</ExpenseProvider>
-              </WalletProvider>
-            </ProcessingProvider>
+            <PushSubscriptionProvider>
+              <RoomActivationRunner />
+              <ProcessingProvider>
+                <WalletProvider>
+                  <ExpenseProvider>{children}</ExpenseProvider>
+                </WalletProvider>
+              </ProcessingProvider>
+            </PushSubscriptionProvider>
           </NotificationProvider>
         </SWRProvider>
       </body>

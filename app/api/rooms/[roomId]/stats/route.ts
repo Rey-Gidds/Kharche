@@ -7,6 +7,11 @@ import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * GET /api/rooms/[roomId]/stats
  * Returns ONLY the current user's RoomStats with populated member names.
@@ -21,7 +26,6 @@ export async function GET(
 
   try {
     const { roomId } = await params;
-    await connectDB();
 
     // ACTIVE membership required
     try {

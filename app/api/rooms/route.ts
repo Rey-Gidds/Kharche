@@ -12,6 +12,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /** POST /api/rooms — Create a new room. Creator automatically joins as ACTIVE. */
 export async function POST(req: Request) {
   const session = await getSession(await headers());
@@ -32,8 +37,6 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    await connectDB();
     const mongoSession = await mongoose.startSession();
     mongoSession.startTransaction();
 
@@ -97,7 +100,6 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    await connectDB();
     const [user] = await Promise.all([
       User.findById(session.user.id).lean(),
     ]);

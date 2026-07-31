@@ -11,6 +11,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * POST /api/rooms/[roomId]/settle
  * Records a settlement: current user (payer/creatorId) pays `receiverId` (bearerId) `amount`.
@@ -36,8 +41,6 @@ export async function POST(
     if (receiverId === session.user.id) {
       return NextResponse.json({ error: "Cannot settle with yourself" }, { status: 400 });
     }
-
-    await connectDB();
 
     // ACTIVE membership required
     try {

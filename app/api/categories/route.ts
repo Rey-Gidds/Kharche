@@ -5,6 +5,11 @@ import { normalizeCategoryName } from "@/utils/normalizeCategory";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 export async function GET(req: Request) {
   const session = await getSession(await headers());
 
@@ -17,7 +22,6 @@ export async function GET(req: Request) {
   const all = searchParams.get("all") === "true";
 
   try {
-    await connectDB();
 
     const userId = session.user.id;
     const PREDEFINED_NORMALIZED = ["food", "transport", "rent", "entertainment", "utilities"];

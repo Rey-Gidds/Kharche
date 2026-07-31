@@ -10,6 +10,9 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordCategoryUsage } from "@/utils/normalizeCategory";
 
+// Connect once on container start
+await connectDB();
+
 export async function POST(req: Request) {
     const session = await getSession(await headers());
 
@@ -43,8 +46,6 @@ export async function POST(req: Request) {
         if (!encryptedDescription) {
             return NextResponse.json({ error: "Encrypted description is required" }, { status: 400 });
         }
-
-        await connectDB();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
 
@@ -156,7 +157,6 @@ export async function GET(req: Request) {
     const skip = (page - 1) * limit;
 
     try {
-        await connectDB();
         
         let query: any = { userId: session.user.id };
         

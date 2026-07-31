@@ -8,6 +8,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * POST /api/rooms/[roomId]/key-package
  * Creator delivers an encrypted room key package to a pending member.
@@ -27,8 +32,6 @@ export async function POST(
     if (!targetUserId || !encryptedRoomKey || keyVersion === null || keyVersion === undefined) {
       return NextResponse.json({ error: "targetUserId, encryptedRoomKey, and keyVersion are required" }, { status: 400 });
     }
-
-    await connectDB();
     const mongoSession = await mongoose.startSession();
     mongoSession.startTransaction();
 

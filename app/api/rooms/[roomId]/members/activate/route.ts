@@ -10,6 +10,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * POST /api/rooms/[roomId]/members/activate
  * Joiner activates their membership after receiving the room key.
@@ -24,7 +29,6 @@ export async function POST(
 
   try {
     const { roomId } = await params;
-    await connectDB();
     const mongoSession = await mongoose.startSession();
     mongoSession.startTransaction();
 

@@ -4,6 +4,9 @@ import ExpenseBook from "@/models/ExpenseBook";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
 export async function POST(req: Request) {
     const session = await getSession(await headers());
 
@@ -17,8 +20,6 @@ export async function POST(req: Request) {
         if (!encryptedTitle) {
             return NextResponse.json({ error: "Encrypted title is required" }, { status: 400 });
         }
-
-        await connectDB();
 
         let finalCurrency = currency;
         if (!finalCurrency) {
@@ -60,7 +61,6 @@ export async function GET(req: Request) {
     const skip = (page - 1) * limit;
 
     try {
-        await connectDB();
         const total = await ExpenseBook.countDocuments({ userId: session.user.id });
         const expenseBooks = await ExpenseBook.find({ userId: session.user.id })
             .sort({ createdAt: -1 })

@@ -4,6 +4,11 @@ import RoomMembership from "@/models/RoomMembership";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * GET /api/rooms/[roomId]/members/status
  * Returns the calling user's own membership status for a specific room.
@@ -21,7 +26,6 @@ export async function GET(
 
   try {
     const { roomId } = await params;
-    await connectDB();
 
     const membership = await RoomMembership.findOne({
       roomId,

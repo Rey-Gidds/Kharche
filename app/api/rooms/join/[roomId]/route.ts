@@ -57,7 +57,7 @@ export async function POST(
         currentKeyVersion: 0,
         $unset: { activatedAt: "", keyDeliveredAt: "" },
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
     // Find creator (first user in room.users)
@@ -79,3 +79,4 @@ export async function POST(
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+

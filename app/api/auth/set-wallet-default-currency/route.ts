@@ -7,6 +7,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 export async function POST(req: Request) {
     const session = await getSession(await headers());
 
@@ -24,8 +29,6 @@ export async function POST(req: Request) {
         if (!supportedCurrencies.includes(currency)) {
             return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
         }
-
-        await connectDB();
         const rates = await getServerExchangeRates();
         const convert = (amount: number, from: string, to: string): number | null => {
             if (from === to) return amount;

@@ -9,6 +9,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * DELETE /api/rooms/[roomId]/leave
  * User leaves a room. Blocked if the user has any non-zero balances.
@@ -23,7 +28,6 @@ export async function DELETE(
 
   try {
     const { roomId } = await params;
-    await connectDB();
 
     // Check membership
     const room = await Room.findById(roomId);

@@ -1,4 +1,4 @@
-﻿import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
@@ -76,3 +76,4 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+

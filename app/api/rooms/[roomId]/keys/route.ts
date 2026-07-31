@@ -9,6 +9,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * POST /api/rooms/[roomId]/keys
  * Client posts a new room key (versioned). Only the room creator can do this.
@@ -28,8 +33,6 @@ export async function POST(
     if (!keyVersion || !keyPackages || !Array.isArray(keyPackages) || keyPackages.length === 0) {
       return NextResponse.json({ error: "keyVersion and keyPackages are required" }, { status: 400 });
     }
-
-    await connectDB();
     const mongoSession = await mongoose.startSession();
     mongoSession.startTransaction();
 

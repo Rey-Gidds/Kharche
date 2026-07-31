@@ -8,6 +8,11 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordCategoryUsage } from "@/utils/normalizeCategory";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -26,7 +31,6 @@ export async function DELETE(
             if (!rates[from] || !rates[to]) return null;
             return (amount / rates[from]) * rates[to];
         };
-        await connectDB();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
 
@@ -92,7 +96,6 @@ export async function PUT(
             if (!rates[from] || !rates[to]) return null;
             return (amount / rates[from]) * rates[to];
         };
-        await connectDB();
         const mongoSession = await mongoose.startSession();
         mongoSession.startTransaction();
 

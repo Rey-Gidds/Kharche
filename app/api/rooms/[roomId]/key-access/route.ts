@@ -6,6 +6,11 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+// Connect once on container start
+await connectDB();
+
+// Connect once on container start
+
 /**
  * GET /api/rooms/[roomId]/key-access
  * Returns the current user's encrypted room key for the specified room.
@@ -20,7 +25,6 @@ export async function GET(
 
   try {
     const { roomId } = await params;
-    await connectDB();
 
     // Verify membership
     const room = await Room.findById(roomId);
