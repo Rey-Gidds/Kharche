@@ -4,10 +4,8 @@ import ExpenseBook from "@/models/ExpenseBook";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
 export async function POST(req: Request) {
+    await connectDB();
     const session = await getSession(await headers());
 
     if (!session) {
@@ -16,7 +14,6 @@ export async function POST(req: Request) {
 
     try {
         const { currency, encryptedTitle, encryptedDescription, encryptionVersion } = await req.json();
-
         if (!encryptedTitle) {
             return NextResponse.json({ error: "Encrypted title is required" }, { status: 400 });
         }
@@ -43,6 +40,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+    await connectDB();
     const session = await getSession(await headers());
 
     if (!session) {

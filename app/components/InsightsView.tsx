@@ -1,44 +1,110 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import MinimalBarChart from "./MinimalBarChart";
 import { useWallet } from "@/context/WalletContext";
 import { formatCurrency } from "@/utils/formatCurrency";
 import Modal from "./Modal";
 import { aggregateExpenses } from "@/utils/aggregateExpenses";
+import { decryptExpenseBookPayload } from "@/crypto/services/payloadEncryption.service";
+import { getMasterKey } from "@/crypto/indexeddb/cacheManager";
 
 type TimeFrame = "Daily" | "Weekly" | "Monthly";
+type DataSource = "overall" | "book";
 
 const MONTHS = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 
-import useSWR from "swr";
-
-const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Failed to load expenses");
-  return data;
-};
-
 export default function InsightsView() {
   const now = new Date();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>("Monthly");
-  const { data: result, isLoading: loading, mutate, isValidating } = useSWR<any>("/api/expenses?category=All&sort=desc&sortBy=date&limit=50", fetcher);
-  const expenses = Array.isArray(result) ? result : (result?.data ?? []);
+  const [expenses, setExpenses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const { walletCurrency } = useWallet();
-  
+
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const years = useMemo(() => {
-    // Collect unique years from expenses and current year
-    const expenseYears = (expenses || []).map((e:any) => new Date(e.date).getFullYear());
-    const startYear = Math.min(...expenseYears, now.getFullYear());
+  // Data source state
+  const [dataSource, setDataSource] = useState<DataSource>("overall");
+  const [selectedBookId, setSelectedBookId] = useState<string>("");
+  const [books, setBooks] = useState<{ _id: string; title: string }[]>([]);
 
+  // Fetch expense books for dropdown on mount
+  useEffect(() => {
+    fetch("/api/expense-books?limit=100")
+      .then((r) => r.json())
+      .then(async (data) => {
+        const list = data.data ?? (Array.isArray(data) ? data : []);
+        const mk = getMasterKey();
+        const decrypted = await Promise.all(
+          list.map(async (book: any) => {
+            if (!mk || !book.encryptedTitle) {
+              return { _id: book._id, title: book.title || "Untitled" };
+            }
+            try {
+              const decrypted = await decryptExpenseBookPayload(book, mk);
+              return { _id: book._id, title: decrypted.title };
+            } catch {
+              return { _id: book._id, title: book.title || "Locked Collection" };
+            }
+          })
+        );
+        setBooks(decrypted);
+        if (decrypted.length > 0) setSelectedBookId(decrypted[0]._id);
+      })
+      .catch(() => {});
+  }, []);
+
+  const fetchInsightsData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      params.set("category", "All");
+      params.set("sort", "desc");
+      params.set("sortBy", "date");
+      params.set("limit", "500");
+      if (dataSource === "book" && selectedBookId) {
+        params.set("bookId", selectedBookId);
+      }
+      if (timeFrame === "Monthly") {
+        params.set("dateFilterType", "year");
+        params.set("dateFilterValue", String(selectedYear));
+      } else {
+        params.set("dateFilterType", "month");
+        params.set("dateFilterValue", `${selectedYear}-${selectedMonth + 1}`);
+      }
+      const res = await fetch(`/api/expenses?${params}`);
+      const result = await res.json();
+      setExpenses(Array.isArray(result) ? result : (result?.data ?? []));
+    } catch (err) {
+      console.error("Failed to fetch insights data:", err);
+    } finally {
+      setLoading(false);
+      setIsInitialLoad(false);
+    }
+  }, [dataSource, selectedBookId, timeFrame, selectedYear, selectedMonth]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchInsightsData();
+  }, []);
+
+  // Refresh handler
+  const handleRefresh = () => fetchInsightsData();
+  const handleUpdateGraph = () => {
+    setIsDrawerOpen(false);
+    fetchInsightsData();
+  };
+
+  const years = useMemo(() => {
+    const expenseYears = (expenses || []).map((e: any) => new Date(e.date).getFullYear());
+    const allYears = [...expenseYears, now.getFullYear()];
+    const startYear = expenseYears.length > 0 ? Math.min(...expenseYears, now.getFullYear()) : now.getFullYear();
     const yearList = [];
     for (let y = startYear; y <= now.getFullYear(); y++) {
       yearList.push(y);
@@ -54,8 +120,7 @@ export default function InsightsView() {
   const stats = useMemo(() => {
     const total = aggregatedData.reduce((acc, d) => acc + d.total, 0);
     const avg = total / (aggregatedData.length || 1);
-    
-    // Top category for the filtered data only
+
     const catTotals: Record<string, number> = {};
     aggregatedData.forEach(d => {
       d.breakdown.forEach((b: any) => {
@@ -69,21 +134,20 @@ export default function InsightsView() {
   }, [aggregatedData]);
 
   const handleExport = () => {
-    // Filter expenses to match the current view
-    const filtered = expenses.filter((e:any) => {
-        const d = new Date(e.date);
-        if (timeFrame === "Monthly") return d.getFullYear() === selectedYear;
-        return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
+    const filtered = expenses.filter((e: any) => {
+      const d = new Date(e.date);
+      if (timeFrame === "Monthly") return d.getFullYear() === selectedYear;
+      return d.getFullYear() === selectedYear && d.getMonth() === selectedMonth;
     });
 
     const csvRows = [
       ["Date", "Category", "Amount", "Currency", "Description"],
-      ...filtered.map((e:any) => [
+      ...filtered.map((e: any) => [
         new Date(e.date).toLocaleDateString(),
         e.category,
         e.amount,
-        e.currency,
-        e.description || ""
+        e.currency ?? "",
+        e.description ?? ""
       ])
     ];
 
@@ -96,6 +160,8 @@ export default function InsightsView() {
     link.click();
     document.body.removeChild(link);
   };
+
+  const dataSourceLabel = dataSource === "overall" ? "Overall" : "Expense Book";
 
   if (loading) {
     return (
@@ -111,14 +177,14 @@ export default function InsightsView() {
         <div>
           <h2 className="text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">Financial Insights</h2>
           <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-widest mt-1">
-            Analyzing {timeFrame} patterns for {timeFrame === "Monthly" ? selectedYear : `${MONTHS[selectedMonth]} ${selectedYear}`}
+             {dataSourceLabel} · {timeFrame === "Monthly" ? selectedYear : `${MONTHS[selectedMonth]} ${selectedYear}`} · {timeFrame} patterns
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => mutate()}
-            disabled={isValidating}
+            onClick={handleRefresh}
+            disabled={loading}
             className="hidden md:flex items-center justify-center p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all cursor-pointer group shadow-sm disabled:opacity-50 active:scale-95"
             title="Refresh Insights"
           >
@@ -130,7 +196,7 @@ export default function InsightsView() {
               fill="none" 
               stroke="currentColor" 
               strokeWidth="3" 
-              className={`${isValidating ? "animate-spin text-[var(--accent)]" : "group-hover:rotate-180"} transition-all duration-500`}
+              className={`${loading ? "animate-spin text-[var(--accent)]" : "group-hover:rotate-180"} transition-all duration-500`}
             >
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
               <path d="M21 3v5h-5"/>
@@ -150,13 +216,13 @@ export default function InsightsView() {
              onClick={() => setIsDrawerOpen(true)}
              className="hidden md:flex items-center gap-2 px-6 py-2 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[10px] font-bold uppercase tracking-widest text-[var(--foreground)] hover:border-[var(--accent)] transition-all cursor-pointer shadow-sm group"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:rotate-12 transition-transform"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14V8"/><path d="M12 18h.01"/><path d="M16 12 12 8 8 12"/></svg>
-            Configure View
-          </button>
+             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="group-hover:rotate-12 transition-transform"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14V8"/><path d="M12 18h.01"/><path d="M16 12 12 8 8 12"/></svg>
+             Configure View
+           </button>
         </div>
       </div>
 
-      {/* Summary Cards — vertical scroll on mobile, 3-col grid on desktop */}
+      {/* Summary Cards */}
       <div className="flex flex-col md:flex-row md:grid md:grid-cols-3 overflow-y-scroll snap-y snap-mandatory gap-3 md:gap-6 pb-2 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 no-scrollbar">
         <div className="min-w-[70vw] md:min-w-0 snap-center bg-[var(--surface)] border border-[var(--border)] p-6 rounded-2xl shadow-sm transition-transform hover:scale-[1.02]">
           <p className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-[0.2em] mb-2">Aggregate Spend</p>
@@ -189,11 +255,8 @@ export default function InsightsView() {
             <div className="w-1.5 h-6 bg-[var(--accent)] rounded-full" />
             <h3 className="text-lg font-playfair font-bold">Expenditure Distribution</h3>
         </div>
-        {/* Pass responsive height directly — no wrapper div that fights the chart's own height style */}
         <MinimalBarChart data={aggregatedData} height={220} />
       </div>
-
-
 
       {/* Mobile Floating Action Button for Configure + Refresh */}
       <div className="fixed bottom-20 left-0 w-full px-4 md:hidden z-30 flex justify-center gap-2">
@@ -205,8 +268,8 @@ export default function InsightsView() {
           Configure View
         </button>
         <button 
-            onClick={() => mutate()}
-            disabled={isValidating}
+            onClick={handleRefresh}
+            disabled={loading}
             className="flex items-center justify-center w-11 h-11 bg-[var(--surface)] border border-[var(--border)] rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[var(--muted)] active:scale-95 transition-all disabled:opacity-50"
             title="Refresh Insights"
           >
@@ -218,7 +281,7 @@ export default function InsightsView() {
               fill="none" 
               stroke="currentColor" 
               strokeWidth="3" 
-              className={`${isValidating ? "animate-spin text-[var(--accent)]" : ""} transition-all duration-500`}
+              className={`${loading ? "animate-spin text-[var(--accent)]" : ""} transition-all duration-500`}
             >
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
               <path d="M21 3v5h-5"/>
@@ -234,22 +297,57 @@ export default function InsightsView() {
         sheet
       >
         <div className="space-y-8 py-2">
+          {/* Data Source */}
           <div className="space-y-3">
-             <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Timeframe Type</label>
-             <div className="grid grid-cols-3 gap-2">
-                {(["Daily", "Weekly", "Monthly"] as TimeFrame[]).map((tf) => (
+             <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Data Source</label>
+              <div className="grid grid-cols-2 gap-2">
+                 {(["overall", "book"] as DataSource[]).map((ds) => (
                   <button
-                    key={tf}
-                    onClick={() => setTimeFrame(tf)}
+                    key={ds}
+                    onClick={() => setDataSource(ds)}
                     className={`py-3 px-2 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition-all ${
-                      timeFrame === tf 
+                      dataSource === ds 
                       ? "bg-[var(--accent)] text-[var(--background)] border-[var(--accent)]" 
                       : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--foreground)]"
                     }`}
                   >
-                    {tf}
+                    {ds === "overall" ? "Overall" : "Book"}
                   </button>
                 ))}
+             </div>
+          </div>
+
+          {/* Book selector */}
+           {dataSource === "book" && (
+             <div className="space-y-3">
+               <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Expense Book</label>
+               <select 
+                 value={selectedBookId}
+                 onChange={(e) => setSelectedBookId(e.target.value)}
+                 className="w-full bg-[var(--background)] border border-[var(--border)] rounded-lg p-3 text-sm font-bold text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
+               >
+                 {books.map(b => <option key={b._id} value={b._id} className="bg-[var(--surface)]">{b.title}</option>)}
+               </select>
+             </div>
+           )}
+
+          {/* Timeframe */}
+          <div className="space-y-3">
+             <label className="text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">Timeframe Type</label>
+             <div className="grid grid-cols-3 gap-2">
+                 {(["Daily", "Weekly", "Monthly"] as TimeFrame[]).map((tf) => (
+                   <button
+                     key={tf}
+                     onClick={() => setTimeFrame(tf)}
+                     className={`w-full py-3 px-2 text-[10px] font-bold uppercase tracking-widest rounded-lg border transition-all ${
+                       timeFrame === tf 
+                       ? "bg-[var(--accent)] text-[var(--background)] border-[var(--accent)]" 
+                       : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--foreground)]"
+                     }`}
+                   >
+                     {tf}
+                   </button>
+                 ))}
              </div>
           </div>
 
@@ -279,7 +377,7 @@ export default function InsightsView() {
           </div>
 
           <button 
-             onClick={() => setIsDrawerOpen(false)}
+             onClick={handleUpdateGraph}
              className="w-full py-4 bg-[var(--accent)] text-[var(--background)] rounded-xl font-bold text-xs uppercase tracking-[0.2em] hover:opacity-90 shadow-lg mt-4"
           >
              Update Graph

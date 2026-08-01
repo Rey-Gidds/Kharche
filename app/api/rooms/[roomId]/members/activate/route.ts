@@ -10,11 +10,6 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * POST /api/rooms/[roomId]/members/activate
  * Joiner activates their membership after receiving the room key.
@@ -24,6 +19,7 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

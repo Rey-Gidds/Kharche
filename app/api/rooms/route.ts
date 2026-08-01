@@ -12,13 +12,9 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /** POST /api/rooms — Create a new room. Creator automatically joins as ACTIVE. */
 export async function POST(req: Request) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -96,6 +92,7 @@ export async function POST(req: Request) {
 
 /** GET /api/rooms — List all rooms the current user belongs to */
 export async function GET() {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

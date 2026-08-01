@@ -10,10 +10,8 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordCategoryUsage } from "@/utils/normalizeCategory";
 
-// Connect once on container start
-await connectDB();
-
 export async function POST(req: Request) {
+    await connectDB();
     const session = await getSession(await headers());
 
     if (!session) {
@@ -130,6 +128,7 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
+    await connectDB();
     const session = await getSession(await headers());
 
     if (!session) {
@@ -147,9 +146,10 @@ export async function GET(req: Request) {
     const tzOffsetParam = searchParams.get("timezoneOffset");
     const timezoneOffset = tzOffsetParam !== null ? parseInt(tzOffsetParam, 10) : 0;
 
-    // Secure pagination
-    const MAX_LIMIT = 50;
-    const DEFAULT_LIMIT = 20;
+    // Secure pagination — allow larger limits for date-filtered aggregation queries
+    const hasDateFilter = dateFilterType !== "all" && dateFilterValue !== "";
+    const MAX_LIMIT = hasDateFilter ? 500 : 50;
+    const DEFAULT_LIMIT = hasDateFilter ? 500 : 20;
     const rawLimit = parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);
     const limit = Math.min(Math.max(1, isNaN(rawLimit) ? DEFAULT_LIMIT : rawLimit), MAX_LIMIT);
     const rawPage = parseInt(searchParams.get("page") ?? "1", 10);

@@ -5,11 +5,6 @@ import { normalizeCategoryName } from "@/utils/normalizeCategory";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 export async function GET(req: Request) {
   const session = await getSession(await headers());
 
@@ -29,6 +24,7 @@ export async function GET(req: Request) {
       userId,
       normalizedName: { $nin: PREDEFINED_NORMALIZED }
     };
+    await connectDB();
 
     // 1. If 'all' is true, return all categories historically created by this user (excluding predefined)
     if (all) {

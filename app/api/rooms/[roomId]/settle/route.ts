@@ -11,11 +11,6 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * POST /api/rooms/[roomId]/settle
  * Records a settlement: current user (payer/creatorId) pays `receiverId` (bearerId) `amount`.
@@ -27,6 +22,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

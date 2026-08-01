@@ -9,11 +9,6 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * POST /api/rooms/[roomId]/keys
  * Client posts a new room key (versioned). Only the room creator can do this.
@@ -23,6 +18,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

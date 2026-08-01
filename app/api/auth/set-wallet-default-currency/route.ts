@@ -7,11 +7,6 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 export async function POST(req: Request) {
     const session = await getSession(await headers());
 
@@ -21,6 +16,7 @@ export async function POST(req: Request) {
 
     try {
         const { currency } = await req.json();
+        await connectDB();
 
         if (!currency) {
             return NextResponse.json({ error: "Currency is required" }, { status: 400 });

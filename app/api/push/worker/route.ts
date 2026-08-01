@@ -5,11 +5,6 @@ import PushSubscription from "@/models/PushSubscription";
 import { sendPushToSubscription } from "@/lib/webpush/sendPush";
 import { buildPayload } from "@/lib/webpush/buildPayload";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * POST /api/push/worker
  *
@@ -26,6 +21,8 @@ await connectDB();
  *  5. Delete the notification record unconditionally (one attempt only).
  */
 export async function POST(req: Request) {
+  await connectDB();
+
   // ── Auth guard ─────────────────────────────────────────────────────────────
   const secret = req.headers.get("x-internal-secret");
   if (!secret || secret !== process.env.INTERNAL_WORKER_SECRET) {

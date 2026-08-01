@@ -6,11 +6,6 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * GET /api/rooms/[roomId]/key-access
  * Returns the current user's encrypted room key for the specified room.
@@ -20,6 +15,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

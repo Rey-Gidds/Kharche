@@ -20,6 +20,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,8 +35,6 @@ export async function GET(
     } catch {
       return NextResponse.json({ error: "Active membership required" }, { status: 403 });
     }
-
-    await connectDB();
 
     // Find the membership doc and atomically return the old timestamp + update to now
     const membership = await RoomMembership.findOneAndUpdate(

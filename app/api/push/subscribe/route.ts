@@ -4,16 +4,12 @@ import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import PushSubscription from "@/models/PushSubscription";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /** POST /api/push/subscribe
  * Authenticated. Upserts a push subscription for the current user.
  * Body: { endpoint: string, keys: { p256dh: string, auth: string }, userAgent?: string }
  */
 export async function POST(req: Request) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

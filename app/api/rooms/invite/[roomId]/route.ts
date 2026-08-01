@@ -2,11 +2,6 @@ import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * GET /api/rooms/invite/[roomId]
  * Public endpoint — returns basic room info for the invite page.
@@ -16,6 +11,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   try {
     const { roomId } = await params;
 

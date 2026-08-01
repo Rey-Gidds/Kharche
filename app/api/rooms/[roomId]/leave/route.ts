@@ -9,11 +9,6 @@ import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * DELETE /api/rooms/[roomId]/leave
  * User leaves a room. Blocked if the user has any non-zero balances.
@@ -23,6 +18,7 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

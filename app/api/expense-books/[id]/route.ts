@@ -5,11 +5,6 @@ import ExpenseBook from "@/models/ExpenseBook";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 export async function GET(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -22,7 +17,8 @@ export async function GET(
 
     try {
         const { id } = await params;
-        
+        await connectDB();
+
         const expenseBook = await ExpenseBook.findOne({
             _id: id,
             userId: session.user.id
@@ -48,6 +44,8 @@ export async function PUT(
     try {
         const { id } = await params;
         const { currency, encryptedTitle, encryptedDescription, encryptionVersion } = await req.json();
+        await connectDB();
+
         const updateFields: Record<string, any> = {};
         if (encryptedTitle) {
             updateFields.encryptedTitle = encryptedTitle;
@@ -78,6 +76,7 @@ export async function DELETE(
 
     try {
         const { id } = await params;
+        await connectDB();
 
         const book = await ExpenseBook.findOneAndDelete({ _id: id, userId: session.user.id });
         if (!book) return NextResponse.json({ error: "Expense Book not found" }, { status: 404 });

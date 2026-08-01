@@ -7,11 +7,6 @@ import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * GET /api/rooms/[roomId]/stats
  * Returns ONLY the current user's RoomStats with populated member names.
@@ -21,6 +16,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

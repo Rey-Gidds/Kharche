@@ -8,15 +8,11 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { recordCategoryUsage } from "@/utils/normalizeCategory";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 export async function DELETE(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    await connectDB();
     const session = await getSession(await headers());
 
     if (!session) {
@@ -81,6 +77,7 @@ export async function PUT(
     req: Request,
     { params }: { params: Promise<{ id: string }> }
 ) {
+    await connectDB();
     const session = await getSession(await headers());
 
     if (!session) {

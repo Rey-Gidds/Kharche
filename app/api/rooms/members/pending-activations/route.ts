@@ -5,17 +5,13 @@ import Room from "@/models/Room";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * GET /api/rooms/members/pending-activations
  * Returns all rooms where the calling user's membership is KEY_AVAILABLE.
  * Used by the global RoomActivationRunner to detect and auto-activate missed key deliveries.
  */
 export async function GET() {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

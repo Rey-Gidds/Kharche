@@ -4,11 +4,6 @@ import RoomMembership from "@/models/RoomMembership";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /**
  * GET /api/rooms/[roomId]/members/status
  * Returns the calling user's own membership status for a specific room.
@@ -19,6 +14,7 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

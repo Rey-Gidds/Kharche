@@ -10,20 +10,17 @@ import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { updateBalances } from "@/lib/rooms/balanceEngine";
 import { calculateSplit, validateSplitInput, SplitType } from "@/lib/rooms/splitCalculator";
 import { toSmallestUnit } from "@/utils/roomCurrency";
+import { waitUntil } from "@vercel/functions";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
 
 /** GET /api/rooms/[roomId]/tickets */
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -38,17 +35,37 @@ export async function GET(
       return NextResponse.json({ error: "Active membership required" }, { status: 403 });
     }
 
-    // Secure pagination — limit capped server-side at 50
-    const MAX_LIMIT = 50;
-    const DEFAULT_LIMIT = 20;
+    const dateFilterType = searchParams.get("dateFilterType") || "all";
+    const dateFilterValue = searchParams.get("dateFilterValue") || "";
+
+    // Secure pagination — allow larger limits for date-filtered aggregation queries
+    const hasDateFilter = dateFilterType !== "all" && dateFilterValue !== "";
+    const MAX_LIMIT = hasDateFilter ? 500 : 50;
+    const DEFAULT_LIMIT = hasDateFilter ? 500 : 20;
     const rawLimit = parseInt(searchParams.get("limit") ?? String(DEFAULT_LIMIT), 10);
     const limit = Math.min(Math.max(1, isNaN(rawLimit) ? DEFAULT_LIMIT : rawLimit), MAX_LIMIT);
     const rawPage = parseInt(searchParams.get("page") ?? "1", 10);
     const page = Math.max(1, isNaN(rawPage) ? 1 : rawPage);
     const skip = (page - 1) * limit;
 
-    const total = await RoomTicket.countDocuments({ roomId });
-    const tickets = await RoomTicket.find({ roomId })
+    let query: any = { roomId };
+
+    if (hasDateFilter) {
+      if (dateFilterType === "month") {
+        const [year, month] = dateFilterValue.split("-").map(Number);
+        const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+        const end = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+        query.createdAt = { $gte: start, $lte: end };
+      } else if (dateFilterType === "year") {
+        const year = Number(dateFilterValue);
+        const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
+        const end = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+        query.createdAt = { $gte: start, $lte: end };
+      }
+    }
+
+    const total = await RoomTicket.countDocuments(query);
+    const tickets = await RoomTicket.find(query)
       .populate("creatorId", "name image")
       .populate("bearerId", "name image")
       .populate("distribution.userId", "name image")
@@ -70,6 +87,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -191,9 +209,9 @@ export async function POST(
         .lean();
 
       // ── Fire-and-forget push notifications ──────────────────────────────────
-      // This runs asynchronously after the response is returned. Errors here
-      // must never affect the ticket creation response.
-      ;(async () => {
+      // Uses waitUntil() so Vercel's serverless runtime keeps the function alive
+      // until the notifications are dispatched to the push worker.
+      const notifyWork = (async () => {
         try {
           // Find all ACTIVE members of the room except the ticket creator
           const memberships = await RoomMembership.find(
@@ -255,6 +273,7 @@ export async function POST(
           console.error("[push notification setup]:", notifErr);
         }
       })();
+      waitUntil(notifyWork);
       // ── End fire-and-forget ─────────────────────────────────────────────────
 
       return NextResponse.json(populated, { status: 201 });

@@ -4,17 +4,13 @@ import { getSession } from "@/lib/session";
 import { connectDB } from "@/lib/db";
 import PushSubscription from "@/models/PushSubscription";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /** DELETE /api/push/unsubscribe
  * Authenticated. Removes the push subscription matching the given endpoint
  * for the current user.
  * Body: { endpoint: string }
  */
 export async function DELETE(req: Request) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

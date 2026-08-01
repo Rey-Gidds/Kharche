@@ -6,16 +6,12 @@ import { requireActiveMembership } from "@/lib/rooms/membershipGuard";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
-// Connect once on container start
-await connectDB();
-
-// Connect once on container start
-
 /** GET /api/rooms/[roomId] — Get room details (user must have ACTIVE membership) */
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ roomId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

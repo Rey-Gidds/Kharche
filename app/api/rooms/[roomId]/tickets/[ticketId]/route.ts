@@ -17,6 +17,7 @@ export async function PUT(
   req: Request,
   { params }: { params: Promise<{ roomId: string; ticketId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -24,8 +25,6 @@ export async function PUT(
     const { roomId, ticketId } = await params;
     const body = await req.json();
     const { totalAmount, splitType, involvedUsers, splitData, creatorId, encryptedTitle, encryptedDescription, title, description } = body;
-
-    await connectDB();
 
     // ACTIVE membership required
     try {
@@ -162,12 +161,12 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ roomId: string; ticketId: string }> }
 ) {
+  await connectDB();
   const session = await getSession(await headers());
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
     const { roomId, ticketId } = await params;
-    await connectDB();
 
     // ACTIVE membership required
     try {
