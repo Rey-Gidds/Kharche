@@ -44,7 +44,7 @@ export default async function proxy(request: NextRequest) {
     const rateLimitResponse = await handleRateLimit(request);
     if (rateLimitResponse) return rateLimitResponse;
 
-    const publicPaths = ['/sign-in', '/sign-up', '/forgot-password', '/reset-password', '/verify-email', '/api/auth', '/api/exchange-rates', '/logo.png', '/icon.png', '/manifest.webmanifest', 'api/push/cron'];
+    const publicPaths = ['/sign-in', '/sign-up', '/forgot-password', '/reset-password', '/verify-email', '/api/auth', '/api/exchange-rates', '/logo.png', '/icon.png', '/manifest.webmanifest', '/api/push/cron'];
     const isPublicRoute = publicPaths.some(path => request.nextUrl.pathname.startsWith(path));
 
     // If it's a public route, don't try to fetch session to avoid infinite loop
