@@ -3,7 +3,6 @@ import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomKeyAccess from "@/models/RoomKeyAccess";
 import RoomMembership from "@/models/RoomMembership";
-import { roomEventBus } from "@/lib/sse/roomEventBus";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -84,14 +83,6 @@ export async function POST(
 
       await mongoSession.commitTransaction();
       mongoSession.endSession();
-
-      // Emit SSE to the target user
-      roomEventBus.emit(targetUserId, {
-        type: "ROOM_KEY_AVAILABLE",
-        roomId,
-        keyVersion,
-        timestamp: Date.now(),
-      });
 
       return NextResponse.json({ status: "KEY_AVAILABLE" });
     } catch (txErr) {

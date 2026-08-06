@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
+import useSWR from "swr";
 import MinimalBarChart from "./MinimalBarChart";
 import { useWallet } from "@/context/WalletContext";
 import { formatCurrency } from "@/utils/formatCurrency";
@@ -17,93 +18,90 @@ const MONTHS = [
   "July", "August", "September", "October", "November", "December"
 ];
 
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
 export default function InsightsView() {
   const now = new Date();
   const [timeFrame, setTimeFrame] = useState<TimeFrame>("Monthly");
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const { walletCurrency } = useWallet();
-
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth());
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  // Data source state
   const [dataSource, setDataSource] = useState<DataSource>("overall");
   const [selectedBookId, setSelectedBookId] = useState<string>("");
+  const { walletCurrency } = useWallet();
+
+  // Fetch books once via SWR (cached across tab switches)
+  const { data: booksRaw } = useSWR("/api/expense-books?limit=100", fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnMount: true,
+  });
+
   const [books, setBooks] = useState<{ _id: string; title: string }[]>([]);
 
-  // Fetch expense books for dropdown on mount
   useEffect(() => {
-    fetch("/api/expense-books?limit=100")
-      .then((r) => r.json())
-      .then(async (data) => {
-        const list = data.data ?? (Array.isArray(data) ? data : []);
-        const mk = getMasterKey();
-        const decrypted = await Promise.all(
-          list.map(async (book: any) => {
-            if (!mk || !book.encryptedTitle) {
-              return { _id: book._id, title: book.title || "Untitled" };
-            }
-            try {
-              const decrypted = await decryptExpenseBookPayload(book, mk);
-              return { _id: book._id, title: decrypted.title };
-            } catch {
-              return { _id: book._id, title: book.title || "Locked Collection" };
-            }
-          })
-        );
-        setBooks(decrypted);
-        if (decrypted.length > 0) setSelectedBookId(decrypted[0]._id);
-      })
-      .catch(() => {});
-  }, []);
+    if (!booksRaw) return;
+    const list = booksRaw.data ?? (Array.isArray(booksRaw) ? booksRaw : []);
+    (async () => {
+      const mk = getMasterKey();
+      const decrypted = await Promise.all(
+        list.map(async (book: any) => {
+          if (!mk || !book.encryptedTitle) {
+            return { _id: book._id, title: book.title || "Untitled" };
+          }
+          try {
+            const d = await decryptExpenseBookPayload(book, mk);
+            return { _id: book._id, title: d.title };
+          } catch {
+            return { _id: book._id, title: book.title || "Locked Collection" };
+          }
+        })
+      );
+      setBooks(decrypted);
+      if (decrypted.length > 0 && !selectedBookId) {
+        setSelectedBookId(decrypted[0]._id);
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booksRaw]);
 
-  const fetchInsightsData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("category", "All");
-      params.set("sort", "desc");
-      params.set("sortBy", "date");
-      params.set("limit", "500");
-      if (dataSource === "book" && selectedBookId) {
-        params.set("bookId", selectedBookId);
-      }
-      if (timeFrame === "Monthly") {
-        params.set("dateFilterType", "year");
-        params.set("dateFilterValue", String(selectedYear));
-      } else {
-        params.set("dateFilterType", "month");
-        params.set("dateFilterValue", `${selectedYear}-${selectedMonth + 1}`);
-      }
-      const res = await fetch(`/api/expenses?${params}`);
-      const result = await res.json();
-      setExpenses(Array.isArray(result) ? result : (result?.data ?? []));
-    } catch (err) {
-      console.error("Failed to fetch insights data:", err);
-    } finally {
-      setLoading(false);
-      setIsInitialLoad(false);
+  // Build SWR key for expenses — changes when filters change
+  const expensesKey = useMemo(() => {
+    const params = new URLSearchParams();
+    params.set("category", "All");
+    params.set("sort", "desc");
+    params.set("sortBy", "date");
+    params.set("limit", "500");
+    if (dataSource === "book" && selectedBookId) {
+      params.set("bookId", selectedBookId);
     }
+    if (timeFrame === "Monthly") {
+      params.set("dateFilterType", "year");
+      params.set("dateFilterValue", String(selectedYear));
+    } else {
+      params.set("dateFilterType", "month");
+      params.set("dateFilterValue", `${selectedYear}-${selectedMonth + 1}`);
+    }
+    return `/api/expenses?${params.toString()}`;
   }, [dataSource, selectedBookId, timeFrame, selectedYear, selectedMonth]);
 
-  // Initial fetch
-  useEffect(() => {
-    fetchInsightsData();
-  }, []);
+  const { data: expensesRes, isValidating } = useSWR(expensesKey, fetcher, {
+    revalidateOnFocus: false,
+    revalidateOnMount: true,
+  });
 
-  // Refresh handler
-  const handleRefresh = () => fetchInsightsData();
+  const expenses = useMemo(() => {
+    if (!expensesRes) return [];
+    return Array.isArray(expensesRes) ? expensesRes : (expensesRes?.data ?? []);
+  }, [expensesRes]);
+
+  const loading = !expensesRes && isValidating;
+
   const handleUpdateGraph = () => {
     setIsDrawerOpen(false);
-    fetchInsightsData();
   };
 
   const years = useMemo(() => {
     const expenseYears = (expenses || []).map((e: any) => new Date(e.date).getFullYear());
-    const allYears = [...expenseYears, now.getFullYear()];
     const startYear = expenseYears.length > 0 ? Math.min(...expenseYears, now.getFullYear()) : now.getFullYear();
     const yearList = [];
     for (let y = startYear; y <= now.getFullYear(); y++) {
@@ -113,7 +111,7 @@ export default function InsightsView() {
   }, [expenses]);
 
   const aggregatedData = useMemo(() => {
-    if (loading) return [];
+    if (loading || expenses.length === 0) return [];
     return aggregateExpenses(expenses, timeFrame, selectedYear, selectedMonth, walletCurrency);
   }, [expenses, timeFrame, walletCurrency, selectedYear, selectedMonth, loading]);
 
@@ -183,9 +181,8 @@ export default function InsightsView() {
 
         <div className="flex items-center gap-3">
           <button 
-            onClick={handleRefresh}
-            disabled={loading}
-            className="hidden md:flex items-center justify-center p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all cursor-pointer group shadow-sm disabled:opacity-50 active:scale-95"
+            onClick={() => handleUpdateGraph()}
+            className="hidden md:flex items-center justify-center p-2.5 bg-[var(--surface)] border border-[var(--border)] rounded-full text-[var(--muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all cursor-pointer group shadow-sm active:scale-95"
             title="Refresh Insights"
           >
             <svg 
@@ -196,7 +193,7 @@ export default function InsightsView() {
               fill="none" 
               stroke="currentColor" 
               strokeWidth="3" 
-              className={`${loading ? "animate-spin text-[var(--accent)]" : "group-hover:rotate-180"} transition-all duration-500`}
+              className={`${isValidating ? "animate-spin text-[var(--accent)]" : "group-hover:rotate-180"} transition-all duration-500`}
             >
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
               <path d="M21 3v5h-5"/>
@@ -268,9 +265,8 @@ export default function InsightsView() {
           Configure View
         </button>
         <button 
-            onClick={handleRefresh}
-            disabled={loading}
-            className="flex items-center justify-center w-11 h-11 bg-[var(--surface)] border border-[var(--border)] rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[var(--muted)] active:scale-95 transition-all disabled:opacity-50"
+            onClick={() => handleUpdateGraph()}
+            className="flex items-center justify-center w-11 h-11 bg-[var(--surface)] border border-[var(--border)] rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[var(--muted)] active:scale-95 transition-all"
             title="Refresh Insights"
           >
             <svg 
@@ -281,7 +277,7 @@ export default function InsightsView() {
               fill="none" 
               stroke="currentColor" 
               strokeWidth="3" 
-              className={`${loading ? "animate-spin text-[var(--accent)]" : ""} transition-all duration-500`}
+              className={`${isValidating ? "animate-spin text-[var(--accent)]" : ""} transition-all duration-500`}
             >
               <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
               <path d="M21 3v5h-5"/>

@@ -1,43 +1,31 @@
 "use client";
 
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
-import { useRouter } from "next/navigation";
-
-import { useState } from "react";
-import FullScreenLoader from "./FullScreenLoader";
+import { useNavigation, TabKey } from "@/context/NavigationContext";
 
 interface BottomNavProps {
-  viewMode: string;
-  setViewMode: (mode: any) => void;
-  setSelectedBookId: (id: string | null) => void;
-  navItems: { key: string; label: string; icon: React.ReactNode }[];
+  navItems: { key: TabKey; label: string; icon: React.ReactNode }[];
 }
 
-export default function BottomNav({ viewMode, setViewMode, setSelectedBookId, navItems }: BottomNavProps) {
+export default function BottomNav({ navItems }: BottomNavProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const router = useRouter();
-  const [isNavigating, setIsNavigating] = useState(false);
+  const { activeTab, tabStacks, selectTab } = useNavigation();
 
   if (!isMobile) return null;
 
+  const currentPage = tabStacks[activeTab]?.[tabStacks[activeTab].length - 1];
+
   return (
     <div className="fixed bottom-0 left-0 w-full bg-[var(--surface)] border-t border-[var(--border)] z-40 pb-safe">
-      {isNavigating && <FullScreenLoader />}
       <div className="flex items-center justify-around px-2 py-3">
         {navItems.map((item) => {
-          const isActive = viewMode === item.key || (viewMode === "single-book" && item.key === "books");
+          const isActive =
+            activeTab === item.key ||
+            (item.key === "books" && currentPage?.type === "single-book");
           return (
             <button
               key={item.key}
-              onClick={() => {
-                if (item.key === "wallet") {
-                  setIsNavigating(true);
-                  router.push("/me/wallet");
-                } else {
-                  setViewMode(item.key as any);
-                  setSelectedBookId(null);
-                }
-              }}
+              onClick={() => selectTab(item.key)}
               className={`flex flex-col items-center justify-center gap-1 w-16 transition-colors ${
                 isActive ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--foreground)]"
               }`}

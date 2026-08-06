@@ -2,7 +2,6 @@
 import { connectDB } from "@/lib/db";
 import Room from "@/models/Room";
 import RoomMembership from "@/models/RoomMembership";
-import { roomEventBus } from "@/lib/sse/roomEventBus";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -59,17 +58,6 @@ export async function POST(
       },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
-
-    // Find creator (first user in room.users)
-    const creatorId = room.users[0]?.toString();
-    if (creatorId) {
-      roomEventBus.emit(creatorId, {
-        type: "MEMBER_WAITING_FOR_KEY",
-        roomId: roomId.toString(),
-        userId: session.user.id,
-        timestamp: Date.now(),
-      });
-    }
 
     return NextResponse.json({
       membershipId: membership._id,

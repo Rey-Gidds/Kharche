@@ -4,7 +4,6 @@ import Room from "@/models/Room";
 import RoomKeyVersion from "@/models/RoomKeyVersion";
 import RoomKeyAccess from "@/models/RoomKeyAccess";
 import RoomMembership from "@/models/RoomMembership";
-import { roomEventBus } from "@/lib/sse/roomEventBus";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -97,20 +96,6 @@ export async function POST(
 
       await mongoSession.commitTransaction();
       mongoSession.endSession();
-
-      // Emit SSE to all ACTIVE members
-      const activeMembers = await RoomMembership.find({
-        roomId,
-        status: "ACTIVE",
-      }).lean();
-      const activeUserIds = activeMembers.map((m) => m.userId.toString());
-
-      roomEventBus.emitToRoom(activeUserIds, {
-        type: "ROOM_KEY_ROTATED",
-        roomId,
-        keyVersion,
-        timestamp: Date.now(),
-      });
 
       return NextResponse.json({ keyVersion }, { status: 201 });
     } catch (txErr) {

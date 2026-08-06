@@ -4,7 +4,6 @@ import Room from "@/models/Room";
 import RoomStats from "@/models/RoomStats";
 import RoomMembership from "@/models/RoomMembership";
 import User from "@/models/User";
-import { roomEventBus } from "@/lib/sse/roomEventBus";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -50,11 +49,6 @@ export async function DELETE(
     try {
       const userId = new mongoose.Types.ObjectId(session.user.id);
 
-      // Get remaining user IDs before removing the leaver
-      const remainingUserIds = (room.users as mongoose.Types.ObjectId[])
-        .filter((uid) => uid.toString() !== session.user.id)
-        .map((uid) => uid.toString());
-
       // Remove user from room
       await Room.updateOne(
         { _id: roomId },
@@ -88,16 +82,6 @@ export async function DELETE(
 
       await mongoSession.commitTransaction();
       mongoSession.endSession();
-
-      // Emit SSE to all remaining ACTIVE members
-      if (remainingUserIds.length > 0) {
-        roomEventBus.emitToRoom(remainingUserIds, {
-          type: "MEMBER_LEFT",
-          roomId,
-          userId: session.user.id,
-          timestamp: Date.now(),
-        });
-      }
 
       return NextResponse.json({ message: "You have left the room successfully." });
     } catch (txErr) {

@@ -9,6 +9,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { PushSubscriptionProvider } from "@/context/PushSubscriptionContext";
 import { WalletProvider } from "@/context/WalletContext";
 import { ProcessingProvider } from "@/context/ProcessingContext";
+import { NavigationProvider } from "@/context/NavigationContext";
 import { SWRProvider } from "@/app/components/SWRProvider";
 import PwaRegistry from "@/app/components/PwaRegistry";
 import RoomActivationRunner from "@/app/components/RoomActivationRunner";
@@ -50,7 +51,9 @@ export default function RootLayout({
               <RoomActivationRunner />
               <ProcessingProvider>
                 <WalletProvider>
-                  <ExpenseProvider>{children}</ExpenseProvider>
+                  <NavigationProvider>
+                    <ExpenseProvider>{children}</ExpenseProvider>
+                  </NavigationProvider>
                 </WalletProvider>
               </ProcessingProvider>
             </PushSubscriptionProvider>

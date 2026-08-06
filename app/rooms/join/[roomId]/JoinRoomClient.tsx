@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import useSWR from "swr";
-import { useRoomSSE } from "@/hooks/useRoomSSE";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -91,29 +90,6 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId]);
-
-  useRoomSSE({
-    onEventType: {
-      ROOM_KEY_AVAILABLE: async (event) => {
-        if (event.roomId === roomId && isPending) {
-          try {
-            // Target user just received key. Now activate.
-            const res = await fetch(`/api/rooms/${roomId}/members/activate`, { method: "POST" });
-            if (!res.ok) {
-              const data = await res.json();
-              setJoinError(data.error || "Failed to activate membership.");
-              return;
-            }
-            setIsPending(false);
-            setJoined(true);
-            setTimeout(() => router.push("/"), 1500);
-          } catch (e) {
-            setJoinError("Failed to activate.");
-          }
-        }
-      },
-    },
-  });
 
   const { data: room, error, isLoading } = useSWR(
     `/api/rooms/invite/${roomId}`,
@@ -258,10 +234,11 @@ export default function JoinRoomClient({ roomId, userId, userName }: JoinRoomCli
               </div>
             ) : isPending ? (
               <div className="space-y-4 text-center">
-                <div className="w-12 h-12 rounded-full border-2 border-[var(--border)] border-t-[var(--accent)] animate-spin flex items-center justify-center mx-auto">
+                <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center mx-auto">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-emerald-500"><path d="M20 6 9 17l-5-5"/></svg>
                 </div>
                 <div>
-                  <p className="font-bold text-[var(--foreground)]">Waiting for approval</p>
+                  <p className="font-bold text-[var(--foreground)]">Request sent successfully</p>
                   <p className="text-xs text-[var(--muted)] mt-1">The room creator needs to approve your request and share the encryption keys.</p>
                 </div>
               </div>

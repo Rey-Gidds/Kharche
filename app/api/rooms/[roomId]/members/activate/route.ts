@@ -5,7 +5,6 @@ import RoomMembership from "@/models/RoomMembership";
 import RoomKeyAccess from "@/models/RoomKeyAccess";
 import User from "@/models/User";
 import { initBalancesForNewMember } from "@/lib/rooms/balanceEngine";
-import { roomEventBus } from "@/lib/sse/roomEventBus";
 import mongoose from "mongoose";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -89,20 +88,6 @@ export async function POST(
 
       await mongoSession.commitTransaction();
       mongoSession.endSession();
-
-      // Emit SSE to all ACTIVE members
-      const activeMembers = await RoomMembership.find({
-        roomId,
-        status: "ACTIVE",
-      }).lean();
-      const activeUserIds = activeMembers.map((m) => m.userId.toString());
-
-      roomEventBus.emitToRoom(activeUserIds, {
-        type: "MEMBERSHIP_ACTIVATED",
-        roomId,
-        userId: session.user.id,
-        timestamp: Date.now(),
-      });
 
       return NextResponse.json({ status: "ACTIVE" });
     } catch (txErr) {

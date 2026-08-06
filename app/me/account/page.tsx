@@ -10,7 +10,11 @@ import Link from "next/link";
 import FullScreenLoader from "@/app/components/FullScreenLoader";
 import EncryptionStatusCard from "./EncryptionStatusCard";
 
-export default function AccountPage() {
+interface AccountPageProps {
+  onBack?: () => void;
+}
+
+export default function AccountPage({ onBack }: AccountPageProps = {}) {
     const { data: session, isPending, error: sessionError } = useSession();
     const { showNotification } = useNotification();
     const router = useRouter();
@@ -101,14 +105,24 @@ export default function AccountPage() {
     return (
         <div className="min-h-screen md:min-h-[100dvh] bg-[var(--background)] text-[var(--foreground)] pb-10 md:pb-20 animate-in fade-in duration-700">
             <header className="px-6 pt-6 md:pt-12 pb-6 md:pb-8 max-w-4xl mx-auto">
-                <Link 
-                    href="/" 
-                    onClick={() => setIsNavigatingHome(true)}
-                    className="inline-flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors mb-6 group text-sm font-medium"
-                >
-                    <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-                    Home
-                </Link>
+                {onBack ? (
+                    <button
+                        onClick={onBack}
+                        className="inline-flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors mb-6 group text-sm font-medium"
+                    >
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Back
+                    </button>
+                ) : (
+                    <Link 
+                        href="/" 
+                        onClick={() => setIsNavigatingHome(true)}
+                        className="inline-flex items-center gap-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors mb-6 group text-sm font-medium"
+                    >
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Home
+                    </Link>
+                )}
                 <h1 className="text-4xl font-serif font-bold text-[var(--foreground)] animate-in slide-in-from-left duration-500">My Account</h1>
                 <p className="text-[var(--muted)] mt-2 animate-in slide-in-from-left duration-500 delay-100">Manage your profile and personal details.</p>
             </header>

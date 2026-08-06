@@ -9,8 +9,6 @@ import AddTicketModal from "./AddTicketModal";
 import InviteLinkModal from "./InviteLinkModal";
 import ActionFab from "../ActionFab";
 import { fetchAndDecryptRoomKey } from "@/lib/rooms/roomKeyClient";
-import { useRoomSSE } from "@/hooks/useRoomSSE";
-import { useSWRConfig } from "swr";
 
 type RoomTab = "tickets" | "balances" | "members";
 
@@ -26,7 +24,6 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
   const [addTicketOpen, setAddTicketOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [roomKey, setRoomKey] = useState<CryptoKey | null>(null);
-  const { mutate } = useSWRConfig();
 
   // Acquire the room key on mount if room has encryption
   // Uses fetchAndDecryptRoomKey which checks IndexedDB first, then falls back to server fetch
@@ -35,18 +32,6 @@ export default function RoomView({ room, currentUserId, onBack, onLeft }: RoomVi
       fetchAndDecryptRoomKey(room._id).then(setRoomKey);
     }
   }, [room._id, room.activeKeyVersion]);
-
-  // Re-fetch room data when a member activates
-  useRoomSSE({
-    onEventType: {
-      MEMBERSHIP_ACTIVATED: (event) => {
-        if (event.roomId === room._id) {
-          mutate(`/api/rooms/${room._id}`);
-          mutate("/api/rooms");
-        }
-      },
-    },
-  });
 
   const tabs: { key: RoomTab; label: string; icon: React.ReactNode }[] = [
     {

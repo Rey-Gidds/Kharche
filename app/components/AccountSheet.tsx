@@ -8,19 +8,14 @@ import SignOutButton from "./SignOutButton";
 import Link from "next/link";
 import DownloadLink from "./DownloadLink";
 
-import { useRouter } from "next/navigation";
-import FullScreenLoader from "./FullScreenLoader";
-
 interface AccountSheetProps {
   session: any;
 }
 
 export default function AccountSheet({ session }: AccountSheetProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isNavigating, setIsNavigating] = useState(false);
   const { walletBalance, walletCurrency } = useWallet();
   const { setupCompleted, isUnlocked } = useEncryption();
-  const router = useRouter();
 
   const initial = session?.user?.name ? session.user.name.charAt(0).toUpperCase() : "U";
   const name = session?.user?.name ?? "";
@@ -32,7 +27,6 @@ export default function AccountSheet({ session }: AccountSheetProps) {
 
   return (
     <>
-      {isNavigating && <FullScreenLoader />}
       {/* Avatar trigger button */}
       <button
         onClick={() => setIsOpen(true)}
@@ -118,10 +112,7 @@ export default function AccountSheet({ session }: AccountSheetProps) {
             </div>
             <Link
               href="/me/account"
-              onClick={() => {
-                setIsOpen(false);
-                setIsNavigating(true);
-              }}
+              onClick={() => setIsOpen(false)}
               className="w-full py-3.5 text-center bg-[var(--surface)] border border-[var(--border)] rounded-2xl font-bold text-sm text-[var(--foreground)] hover:border-[var(--accent)] transition-colors"
             >
               Manage Account

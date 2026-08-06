@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useNavigation } from "@/context/NavigationContext";
 import ExpenseBookList from "./ExpenseBookList";
 import ExpenseList from "./ExpenseList";
 import ActionFab from "./ActionFab";
@@ -11,9 +12,9 @@ import InsightsView from "./InsightsView";
 import BottomNav from "./BottomNav";
 import { useSession } from "@/lib/auth-client";
 import RoomList from "./rooms/RoomList";
-import { useRouter, useSearchParams } from "next/navigation";
-
-type ViewMode = "books" | "all-tickets" | "single-book" | "insights" | "rooms";
+import RoomView from "./rooms/RoomView";
+import WalletPage from "@/app/me/wallet/page";
+import { useSWRConfig } from "swr";
 
 const BookIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
@@ -35,117 +36,112 @@ const WalletIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
 );
 
-import FullScreenLoader from "./FullScreenLoader";
-import { SkeletonRoomCard } from "./Skeletons";
-
 export default function Dashboard() {
-  const [viewMode, setViewMode] = useState<ViewMode>("books");
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
-  const [selectedBookTitle, setSelectedBookTitle] = useState<string>("");
-  const [selectedBookCurrency, setSelectedBookCurrency] = useState<string>("");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const { data: session } = useSession();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  const { activeTab, tabStacks, selectTab, pushPage, pop, canPop } = useNavigation();
+  const { mutate } = useSWRConfig();
 
-  // Sync viewMode with URL if needed (optional)
-  useEffect(() => {
-    const tab = searchParams.get("tab");
-    if (tab && (tab === "books" || tab === "all-tickets" || tab === "insights" || tab === "rooms")) {
-      setViewMode(tab as ViewMode);
-    }
-  }, [searchParams]);
+  const currentTabStack = tabStacks[activeTab] || [];
+  const currentPage = currentTabStack[currentTabStack.length - 1];
 
   const handleSelectBook = (bookId: string, bookTitle: string, bookCurrency: string) => {
-    setSelectedBookTitle(bookTitle);
-    setSelectedBookId(bookId);
-    setSelectedBookCurrency(bookCurrency);
-    setViewMode("single-book");
+    pushPage({ type: "single-book", id: bookId, title: bookTitle, currency: bookCurrency });
+  };
+
+  const handleSelectRoom = (room: any) => {
+    pushPage({ type: "room-view", room });
+  };
+
+  const handleRoomLeft = () => {
+    pop();
+    mutate("/api/rooms");
   };
 
   const navItems = [
-    { key: "books", label: "Collections", icon: <BookIcon /> },
-    { key: "all-tickets", label: "Journal", icon: <ListIcon /> },
-    { key: "insights", label: "Insights", icon: <ChartIcon /> },
-    { key: "rooms", label: "Rooms", icon: <RoomsIcon /> },
-    { key: "wallet", label: "Wallet", icon: <WalletIcon /> },
+    { key: "books" as const, label: "Collections", icon: <BookIcon /> },
+    { key: "all-tickets" as const, label: "Journal", icon: <ListIcon /> },
+    { key: "insights" as const, label: "Insights", icon: <ChartIcon /> },
+    { key: "rooms" as const, label: "Rooms", icon: <RoomsIcon /> },
+    { key: "wallet" as const, label: "Wallet", icon: <WalletIcon /> },
   ];
 
   return (
     <div className="max-w-4xl mx-auto mt-0 md:mt-8 space-y-4 md:space-y-12">
-      {isNavigating && <FullScreenLoader />}
       {/* Navigation / Secondary Header (Desktop Only) */}
       <div className="hidden md:flex items-center gap-6 border-b border-[var(--border)] pb-4 overflow-x-auto no-scrollbar">
         {navItems.map((item) => (
           <button
             key={item.key}
-            onClick={() => {
-              if (item.key === "wallet") {
-                setIsNavigating(true);
-                router.push("/me/wallet");
-              } else {
-                setViewMode(item.key as ViewMode);
-                setSelectedBookId(null);
-              }
-            }}
+            onClick={() => selectTab(item.key)}
             className={`pb-2 text-[11px] font-bold uppercase tracking-[0.2em] transition-all relative whitespace-nowrap cursor-pointer ${
-              viewMode === item.key
+              activeTab === item.key
                 ? "text-[var(--accent)]"
                 : "text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
             {item.label}
-            {viewMode === item.key && (
+            {activeTab === item.key && (
               <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--accent)]" />
             )}
           </button>
         ))}
       </div>
 
-      {/* Main Content Area — views are always mounted but hidden for caching/persistence */}
+      {/* Main Content Area */}
       <section className="min-h-[200px] md:min-h-[400px]">
-        <div className={viewMode === "books" ? "block animate-in fade-in duration-300" : "hidden"}>
+        {/* Collections / Books */}
+        {(currentPage?.type === "books" || (activeTab === "books" && !currentPage)) && (
           <div className="space-y-6 md:space-y-8">
             <h2 className="hidden md:block text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">Workspaces</h2>
-            <ExpenseBookList
-              onSelectBook={handleSelectBook}
-            />
+            <ExpenseBookList onSelectBook={handleSelectBook} />
           </div>
-        </div>
-        
-        <div className={viewMode === "all-tickets" ? "block animate-in fade-in duration-300" : "hidden"}>
-          <ExpenseList />
-        </div>
+        )}
 
-        <div className={viewMode === "insights" ? "block animate-in fade-in duration-300" : "hidden"}>
-          <InsightsView />
-        </div>
-
-        {/* Single Book and Rooms still use conditional rendering for data integrity/parameters */}
-        {viewMode === "single-book" && selectedBookId && (
+        {/* Single Book */}
+        {currentPage?.type === "single-book" && (
           <ExpenseList
-            bookId={selectedBookId}
-            bookTitle={selectedBookTitle}
-            bookCurrency={selectedBookCurrency}
-            onBack={() => setViewMode("books")}
+            bookId={currentPage.id}
+            bookTitle={currentPage.title}
+            bookCurrency={currentPage.currency}
+            onBack={pop}
           />
         )}
 
-        {viewMode === "rooms" && (
-          session ? (
-            <RoomList currentUserId={session.user.id} />
-          ) : (
-            <div className="grid grid-cols-1 gap-3 skeleton-stagger">
-              {[1, 2, 3].map((i) => <SkeletonRoomCard key={i} />)}
-            </div>
-          )
+        {/* All Tickets / Journal */}
+        {currentPage?.type === "all-tickets" && (
+          <ExpenseList onBack={canPop ? pop : undefined} />
+        )}
+
+        {/* Insights */}
+        {(activeTab === "insights" || currentPage?.type === "insights") && (
+          <InsightsView />
+        )}
+
+        {/* Rooms */}
+        {(activeTab === "rooms" || currentPage?.type === "rooms") && session && (
+          <RoomList currentUserId={session.user.id} onSelectRoom={handleSelectRoom} />
+        )}
+
+        {/* Room View */}
+        {currentPage?.type === "room-view" && currentPage.room && session && (
+          <RoomView
+            room={currentPage.room}
+            currentUserId={session.user.id}
+            onBack={pop}
+            onLeft={handleRoomLeft}
+          />
+        )}
+
+        {/* Wallet */}
+        {(activeTab === "wallet" || currentPage?.type === "wallet") && (
+          <WalletPage onBack={pop} />
         )}
       </section>
 
       {/* FAB + Modals — only for non-rooms and non-insights views */}
-      {viewMode !== "rooms" && viewMode !== "insights" && !isNavigating && (
+      {activeTab !== "rooms" && activeTab !== "insights" && activeTab !== "wallet" && (
         <>
           <Modal
             isOpen={isExpenseModalOpen}
@@ -154,8 +150,8 @@ export default function Dashboard() {
             sheet
           >
           <AddExpenseForm
-            bookId={selectedBookId || undefined}
-            bookCurrency={selectedBookId ? selectedBookCurrency : undefined}
+            bookId={currentPage?.type === "single-book" ? currentPage.id : undefined}
+            bookCurrency={currentPage?.type === "single-book" ? currentPage.currency : undefined}
             onSuccess={() => {
               setIsExpenseModalOpen(false);
             }}
@@ -178,18 +174,13 @@ export default function Dashboard() {
           <ActionFab
             onAddExpense={() => setIsExpenseModalOpen(true)}
             onAddBook={() => setIsBookModalOpen(true)}
-            isInsideBook={viewMode === "single-book"}
+            isInsideBook={currentPage?.type === "single-book"}
           />
         </>
       )}
 
       {/* Mobile Bottom Navigation */}
-      <BottomNav 
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        setSelectedBookId={setSelectedBookId}
-        navItems={navItems}
-      />
+      <BottomNav navItems={navItems} />
     </div>
   );
 }

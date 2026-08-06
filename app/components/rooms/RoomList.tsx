@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from "react";
 import RoomCard from "./RoomCard";
-import RoomView from "./RoomView";
 import CreateRoomModal from "./CreateRoomModal";
 import { useProcessing } from "@/context/ProcessingContext";
 import { SkeletonRoomCard } from "../Skeletons";
 
 interface RoomListProps {
   currentUserId: string;
+  onSelectRoom: (room: any) => void;
 }
 
 import useSWR from "swr";
@@ -20,44 +20,12 @@ const fetcher = async (url: string) => {
   return data;
 };
 
-export default function RoomList({ currentUserId }: RoomListProps) {
+export default function RoomList({ currentUserId, onSelectRoom }: RoomListProps) {
   const { data: rooms = [], error: swrError, isLoading: loading, mutate: fetchRooms } = useSWR<any[]>("/api/rooms", fetcher);
   const error = swrError?.message || "";
   
-  const [selectedRoom, setSelectedRoom] = useState<any | null>(null);
   const { setProcessing, isProcessing } = useProcessing();
   const [createOpen, setCreateOpen] = useState(false);
-
-  // Use SWR for the individual room fetch with fallbackData from the list
-  const { data: roomDetail } = useSWR(
-    selectedRoom ? `/api/rooms/${selectedRoom._id}` : null,
-    fetcher,
-    { 
-      fallbackData: selectedRoom,
-      revalidateOnFocus: false, // Specified in Task 1 global defaults, but being explicit here
-    }
-  );
-
-  const handleSelectRoom = (room: any) => {
-    // Navigate immediately with existing data for instant feedback
-    setSelectedRoom(room);
-  };
-
-  const handleLeft = () => {
-    setSelectedRoom(null);
-    fetchRooms();
-  };
-
-  if (selectedRoom) {
-    return (
-      <RoomView
-        room={roomDetail || selectedRoom}
-        currentUserId={currentUserId}
-        onBack={() => setSelectedRoom(null)}
-        onLeft={handleLeft}
-      />
-    );
-  }
 
   return (
     <div className="space-y-8">
@@ -126,7 +94,7 @@ export default function RoomList({ currentUserId }: RoomListProps) {
             <div key={room._id} className="card-animate" style={{ animationDelay: `${i * 0.06}s` }}>
               <RoomCard
                 room={room}
-                onClick={() => handleSelectRoom(room)}
+                onClick={() => onSelectRoom(room)}
                 loading={isProcessing(`nav-${room._id}`)}
               />
             </div>

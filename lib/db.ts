@@ -21,7 +21,7 @@ export async function connectDB() {
     if (!cached.promise) {
         cached.promise = mongoose.connect(MONGODB_URI!, { 
           family: 4,
-          maxPoolSize: 5, // Optimized pool size for Vercel/serverless instances
+          maxPoolSize: 10, // Optimized pool size for Vercel/serverless instances
           serverSelectionTimeoutMS: 5000,
           socketTimeoutMS: 45000,
           bufferCommands: false,

@@ -34,12 +34,20 @@ export function useExpenseDrawer(
 
         // Only update cache after server confirms success
         await mutate(
-          (currentPages: any[] | undefined) => {
-            if (!currentPages) return [];
-            return currentPages.map((page) => ({
-              ...page,
-              data: page.data.filter((item: any) => item._id !== id),
-            }));
+          (currentData: any) => {
+            if (!currentData) return currentData;
+            // Paginated SWR: array of pages
+            if (Array.isArray(currentData)) {
+              return currentData.map((page: any) => ({
+                ...page,
+                data: page.data.filter((item: any) => item._id !== id),
+              }));
+            }
+            // Non-paginated SWR: single object with a data array
+            return {
+              ...currentData,
+              data: currentData.data.filter((item: any) => item._id !== id),
+            };
           },
           {
             revalidate: true,
