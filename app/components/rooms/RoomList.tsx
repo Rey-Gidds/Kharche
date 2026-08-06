@@ -1,17 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
+import useSWR from "swr";
 import RoomCard from "./RoomCard";
+import RoomView from "./RoomView";
 import CreateRoomModal from "./CreateRoomModal";
 import { useProcessing } from "@/context/ProcessingContext";
 import { SkeletonRoomCard } from "../Skeletons";
 
 interface RoomListProps {
   currentUserId: string;
-  onSelectRoom: (room: any) => void;
 }
-
-import useSWR from "swr";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -20,16 +19,41 @@ const fetcher = async (url: string) => {
   return data;
 };
 
-export default function RoomList({ currentUserId, onSelectRoom }: RoomListProps) {
+export default function RoomList({ currentUserId }: RoomListProps) {
   const { data: rooms = [], error: swrError, isLoading: loading, mutate: fetchRooms } = useSWR<any[]>("/api/rooms", fetcher);
   const error = swrError?.message || "";
   
+  const [selectedRoom, setSelectedRoom] = useState<any | null>(null);
   const { setProcessing, isProcessing } = useProcessing();
   const [createOpen, setCreateOpen] = useState(false);
 
+  const { data: roomDetail } = useSWR(
+    selectedRoom ? `/api/rooms/${selectedRoom._id}` : null,
+    fetcher,
+    { 
+      fallbackData: selectedRoom,
+      revalidateOnFocus: false,
+    }
+  );
+
+  const handleLeft = () => {
+    setSelectedRoom(null);
+    fetchRooms();
+  };
+
+  if (selectedRoom) {
+    return (
+      <RoomView
+        room={roomDetail || selectedRoom}
+        currentUserId={currentUserId}
+        onBack={() => setSelectedRoom(null)}
+        onLeft={handleLeft}
+      />
+    );
+  }
+
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-playfair font-bold text-[var(--foreground)] tracking-tight">
           Rooms
@@ -45,14 +69,12 @@ export default function RoomList({ currentUserId, onSelectRoom }: RoomListProps)
         </button>
       </div>
 
-      {/* Loading */}
       {loading && (
         <div className="grid grid-cols-1 gap-3 skeleton-stagger">
           {[1, 2, 3].map((i) => <SkeletonRoomCard key={i} />)}
         </div>
       )}
 
-      {/* Error */}
       {error && (
         <div className="text-center py-12">
           <p className="text-sm text-red-500 mb-4">{error}</p>
@@ -65,7 +87,6 @@ export default function RoomList({ currentUserId, onSelectRoom }: RoomListProps)
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && !error && rooms.length === 0 && (
         <div className="text-center py-16 border border-dashed border-[var(--border)] rounded-2xl">
           <div className="w-12 h-12 rounded-full bg-[var(--border)] flex items-center justify-center mx-auto mb-4">
@@ -87,14 +108,13 @@ export default function RoomList({ currentUserId, onSelectRoom }: RoomListProps)
         </div>
       )}
 
-      {/* Room Cards */}
       {!loading && rooms.length > 0 && (
         <div className="grid grid-cols-1 gap-3">
           {rooms.map((room, i) => (
             <div key={room._id} className="card-animate" style={{ animationDelay: `${i * 0.06}s` }}>
               <RoomCard
                 room={room}
-                onClick={() => onSelectRoom(room)}
+                onClick={() => setSelectedRoom(room)}
                 loading={isProcessing(`nav-${room._id}`)}
               />
             </div>

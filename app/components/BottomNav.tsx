@@ -2,14 +2,16 @@
 
 import { useMediaQuery } from "@/app/hooks/useMediaQuery";
 import { useNavigation, TabKey } from "@/context/NavigationContext";
+import { useRouter } from "next/navigation";
 
 interface BottomNavProps {
-  navItems: { key: TabKey; label: string; icon: React.ReactNode }[];
+  navItems: { key: TabKey; label: string; icon: React.ReactNode; href?: string }[];
 }
 
 export default function BottomNav({ navItems }: BottomNavProps) {
   const isMobile = useMediaQuery("(max-width: 768px)");
   const { activeTab, tabStacks, selectTab } = useNavigation();
+  const router = useRouter();
 
   if (!isMobile) return null;
 
@@ -25,7 +27,13 @@ export default function BottomNav({ navItems }: BottomNavProps) {
           return (
             <button
               key={item.key}
-              onClick={() => selectTab(item.key)}
+              onClick={() => {
+                if (item.href) {
+                  router.push(item.href);
+                } else {
+                  selectTab(item.key);
+                }
+              }}
               className={`flex flex-col items-center justify-center gap-1 w-16 transition-colors ${
                 isActive ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--foreground)]"
               }`}

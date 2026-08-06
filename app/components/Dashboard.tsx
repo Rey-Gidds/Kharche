@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useNavigation } from "@/context/NavigationContext";
 import ExpenseBookList from "./ExpenseBookList";
 import ExpenseList from "./ExpenseList";
@@ -12,9 +13,6 @@ import InsightsView from "./InsightsView";
 import BottomNav from "./BottomNav";
 import { useSession } from "@/lib/auth-client";
 import RoomList from "./rooms/RoomList";
-import RoomView from "./rooms/RoomView";
-import WalletPage from "@/app/me/wallet/page";
-import { useSWRConfig } from "swr";
 
 const BookIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
@@ -41,7 +39,7 @@ export default function Dashboard() {
   const [isBookModalOpen, setIsBookModalOpen] = useState(false);
   const { data: session } = useSession();
   const { activeTab, tabStacks, selectTab, pushPage, pop, canPop } = useNavigation();
-  const { mutate } = useSWRConfig();
+  const router = useRouter();
 
   const currentTabStack = tabStacks[activeTab] || [];
   const currentPage = currentTabStack[currentTabStack.length - 1];
@@ -50,43 +48,43 @@ export default function Dashboard() {
     pushPage({ type: "single-book", id: bookId, title: bookTitle, currency: bookCurrency });
   };
 
-  const handleSelectRoom = (room: any) => {
-    pushPage({ type: "room-view", room });
-  };
-
-  const handleRoomLeft = () => {
-    pop();
-    mutate("/api/rooms");
-  };
-
   const navItems = [
     { key: "books" as const, label: "Collections", icon: <BookIcon /> },
     { key: "all-tickets" as const, label: "Journal", icon: <ListIcon /> },
     { key: "insights" as const, label: "Insights", icon: <ChartIcon /> },
     { key: "rooms" as const, label: "Rooms", icon: <RoomsIcon /> },
-    { key: "wallet" as const, label: "Wallet", icon: <WalletIcon /> },
+    { key: "wallet" as const, label: "Wallet", icon: <WalletIcon />, href: "/me/wallet" },
   ];
 
   return (
     <div className="max-w-4xl mx-auto mt-0 md:mt-8 space-y-4 md:space-y-12">
       {/* Navigation / Secondary Header (Desktop Only) */}
       <div className="hidden md:flex items-center gap-6 border-b border-[var(--border)] pb-4 overflow-x-auto no-scrollbar">
-        {navItems.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => selectTab(item.key)}
-            className={`pb-2 text-[11px] font-bold uppercase tracking-[0.2em] transition-all relative whitespace-nowrap cursor-pointer ${
-              activeTab === item.key
-                ? "text-[var(--accent)]"
-                : "text-[var(--muted)] hover:text-[var(--foreground)]"
-            }`}
-          >
-            {item.label}
-            {activeTab === item.key && (
-              <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--accent)]" />
-            )}
-          </button>
-        ))}
+        {navItems.map((item) => {
+          const isActive = activeTab === item.key;
+          return (
+            <button
+              key={item.key}
+              onClick={() => {
+                if (item.href) {
+                  router.push(item.href);
+                } else {
+                  selectTab(item.key);
+                }
+              }}
+              className={`pb-2 text-[11px] font-bold uppercase tracking-[0.2em] transition-all relative whitespace-nowrap cursor-pointer ${
+                isActive
+                  ? "text-[var(--accent)]"
+                  : "text-[var(--muted)] hover:text-[var(--foreground)]"
+              }`}
+            >
+              {item.label}
+              {isActive && (
+                <div className="absolute bottom-0 left-0 w-full h-0.5 bg-[var(--accent)]" />
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Content Area */}
@@ -119,29 +117,14 @@ export default function Dashboard() {
           <InsightsView />
         )}
 
-        {/* Rooms */}
+        {/* Rooms — self-managed RoomView for proper mobile layout */}
         {(activeTab === "rooms" || currentPage?.type === "rooms") && session && (
-          <RoomList currentUserId={session.user.id} onSelectRoom={handleSelectRoom} />
-        )}
-
-        {/* Room View */}
-        {currentPage?.type === "room-view" && currentPage.room && session && (
-          <RoomView
-            room={currentPage.room}
-            currentUserId={session.user.id}
-            onBack={pop}
-            onLeft={handleRoomLeft}
-          />
-        )}
-
-        {/* Wallet */}
-        {(activeTab === "wallet" || currentPage?.type === "wallet") && (
-          <WalletPage onBack={pop} />
+          <RoomList currentUserId={session.user.id} />
         )}
       </section>
 
-      {/* FAB + Modals — only for non-rooms and non-insights views */}
-      {activeTab !== "rooms" && activeTab !== "insights" && activeTab !== "wallet" && (
+      {/* FAB + Modals — only for books and journal views */}
+      {(activeTab === "books" || activeTab === "all-tickets" || currentPage?.type === "single-book") && (
         <>
           <Modal
             isOpen={isExpenseModalOpen}
