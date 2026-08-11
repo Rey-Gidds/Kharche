@@ -116,6 +116,14 @@ export const auth = betterAuth({
             enabled: true,
             maxAge: 60, // seconds — drives the TTL passed to secondaryStorage.set
         },
+        // ── CRITICAL: database fallback on Redis cache miss ───────────────────
+        // Without this flag Better Auth's findSession() hits the early-return
+        // branch when secondaryStorage.get() returns null (i.e. Redis key has
+        // expired) and never falls back to MongoDB — forcing the user to sign in
+        // every 60 seconds. With storeSessionInDatabase: true the adapter checks
+        // MongoDB whenever Redis returns null, re-warming the Redis cache on the
+        // next write, giving the user a seamless session for the full session TTL.
+        storeSessionInDatabase: true,
     },
 
     // ── Redis Secondary Storage ───────────────────────────────────────────────
@@ -148,9 +156,14 @@ export const auth = betterAuth({
                 return promise;
             },
             set: async (key: string, value: string, ttl?: number) => {
-                // Cap TTL at 60 s regardless of what Better Auth passes in.
-                // This keeps Redis memory bounded and matches the cookieCache maxAge.
-                const effectiveTtl = ttl ? Math.min(ttl, 60) : 60;
+                // Use the TTL Better Auth passes in (= full session expiry duration,
+                // e.g. 7 days). Previously this was capped at 60 s which matched the
+                // cookieCache maxAge, making Redis expire at the same time as the
+                // cookie — so the MongoDB fallback (storeSessionInDatabase) never
+                // had a live Redis key to warm from either. Now we keep the key alive
+                // for the full session lifetime (max 7 days for Upstash free-tier safety).
+                const SEVEN_DAYS = 7 * 24 * 60 * 60;
+                const effectiveTtl = ttl ? Math.min(ttl, SEVEN_DAYS) : SEVEN_DAYS;
                 await redis.set(key, value, { ex: effectiveTtl });
             },
             delete: async (key: string) => {
