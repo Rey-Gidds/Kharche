@@ -3,6 +3,7 @@ import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import { nextCookies } from "better-auth/next-js";
 import { MongoClient } from "mongodb";
 import { sendEmail } from "./email";
+import { redis } from "./redis";
 import dns from "dns";
 
 // Force Node.js to use Google's public DNS servers.
@@ -96,4 +97,66 @@ export const auth = betterAuth({
             },
         },
     },
+    // ── Session Cache ─────────────────────────────────────────────────────────
+    // cookieCache MUST be enabled to activate the secondaryStorage path for
+    // get-session. Without it Better Auth never reads from Redis and every
+    // /api/auth/get-session call hits MongoDB directly.
+    //
+    // TTL strategy: 60 seconds
+    //   • Reads are frequent (every route render) but writes are rare (login,
+    //     profile update). 60 s is a safe window: stale data is at most 1 min
+    //     old, Redis memory stays bounded, and Upstash free-tier limits are
+    //     never approached.
+    //   • On sign-out, Better Auth calls secondaryStorage.delete(), so the key
+    //     is evicted immediately — no stale "logged-in" cache after logout.
+    //   • On user profile writes (e.g. currency change) the cache key is deleted
+    //     too, so the next get-session re-hydrates from MongoDB and re-caches.
+    session: {
+        cookieCache: {
+            enabled: true,
+            maxAge: 60, // seconds — drives the TTL passed to secondaryStorage.set
+        },
+    },
+
+    // ── Redis Secondary Storage ───────────────────────────────────────────────
+    // Stores the session cache server-side in Upstash Redis so no session data
+    // ever touches the browser cookie (avoids the 4 KB cookie size limit).
+    // Upstash auto-expires keys via the `ex` option — no manual cleanup needed.
+    // ── In-Flight Request Deduplication Map ─────────────────────────────────────
+    // Deduplicates simultaneous/concurrent read requests for the exact same cache key.
+    // If multiple requests arrive concurrently before the first Redis fetch resolves,
+    // they share the same pending Promise instead of issuing multiple Redis calls.
+    secondaryStorage: (() => {
+        const inFlightGets = new Map<string, Promise<string | null>>();
+
+        return {
+            get: async (key: string) => {
+                if (inFlightGets.has(key)) {
+                    return inFlightGets.get(key)!;
+                }
+
+                const promise = (async () => {
+                    try {
+                        const value = await redis.get<string>(key);
+                        return value ?? null;
+                    } finally {
+                        inFlightGets.delete(key);
+                    }
+                })();
+
+                inFlightGets.set(key, promise);
+                return promise;
+            },
+            set: async (key: string, value: string, ttl?: number) => {
+                // Cap TTL at 60 s regardless of what Better Auth passes in.
+                // This keeps Redis memory bounded and matches the cookieCache maxAge.
+                const effectiveTtl = ttl ? Math.min(ttl, 60) : 60;
+                await redis.set(key, value, { ex: effectiveTtl });
+            },
+            delete: async (key: string) => {
+                inFlightGets.delete(key);
+                await redis.del(key);
+            },
+        };
+    })(),
 });

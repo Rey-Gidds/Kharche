@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -11,9 +11,8 @@ import EncryptionOverlay from "@/app/components/encryption/EncryptionOverlay";
 import { Suspense } from "react";
 
 export default async function Home() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const session = await getSession(await headers());
+
 
   if (!session) {
     redirect("/sign-in");

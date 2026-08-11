@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { getSession } from "@/lib/session";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import JoinRoomClient from "./JoinRoomClient";
@@ -10,7 +10,8 @@ export default async function JoinRoomPage({
 }) {
   const { roomId } = await params;
 
-  const session = await auth.api.getSession({ headers: await headers() });
+  const session = await getSession(await headers());
+
 
   if (!session) {
     redirect(`/sign-in?callbackUrl=/rooms/join/${roomId}`);
