@@ -23,7 +23,7 @@ export default function SignIn() {
         password,
       }, {
         onSuccess: () => {
-          router.push("/");
+          router.push("/dashboard");
         },
         onError: (ctx) => {
           setError(ctx.error.message || "Invalid credentials");
@@ -40,7 +40,7 @@ export default function SignIn() {
     try {
       await authClient.signIn.social({
         provider,
-        callbackURL: "/",
+        callbackURL: "/dashboard",
       });
     } catch (err) {
       setError(`Failed to sign in with ${provider}.`);

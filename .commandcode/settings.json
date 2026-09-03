@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(Get-Content:*)",
+      "Shell(.Length:*)",
+      "Shell(.Count:*)",
+      "powershell"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}

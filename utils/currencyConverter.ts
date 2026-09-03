@@ -7,22 +7,34 @@
 // callers surface an error state.
 
 let cachedRates: Record<string, number> | null = null;
+let inflightPromise: Promise<Record<string, number>> | null = null;
 
 /**
  * Fetches exchange rates from our server-side cache endpoint.
  * The server deduplicates upstream calls and caches for 24 hours.
+ * Uses client-side in-flight request coalescing to prevent redundant network calls.
  * Stores the result in the client-side module cache for synchronous access.
  */
 export async function fetchExchangeRates(): Promise<Record<string, number>> {
   if (cachedRates) return cachedRates;
-  const response = await fetch("/api/exchange-rates");
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    throw new Error(body.error ?? `Exchange rate API returned ${response.status}`);
-  }
-  const data = await response.json();
-  cachedRates = data.rates as Record<string, number>;
-  return cachedRates;
+  if (inflightPromise) return inflightPromise;
+
+  inflightPromise = (async () => {
+    try {
+      const response = await fetch("/api/exchange-rates");
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? `Exchange rate API returned ${response.status}`);
+      }
+      const data = await response.json();
+      cachedRates = data.rates as Record<string, number>;
+      return cachedRates;
+    } finally {
+      inflightPromise = null;
+    }
+  })();
+
+  return inflightPromise;
 }
 
 /**
